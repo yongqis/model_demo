@@ -55,9 +55,9 @@ def singel_query(sess, top_k, input_shape, input, output, data_dir):
     image_dir = data_dir_dict['query']
     query_image_paths = get_ab_path(image_dir)  # 文件目录下所有图片的绝对路径
     # load gallery
-    lablel_map = joblib.load(data_dir + '/label_dict.pkl')
-    gallery_features = joblib.load(data_dir + '/gallery_features.pkl')
-    gallery_image_paths = joblib.load(data_dir + '/gallery_imagePaths.pkl')
+    lablel_map = joblib.load(os.path.join(data_dir, 'label_dict.pkl'))
+    gallery_features = joblib.load(os.path.join(data_dir, 'gallery_features.pkl'))
+    gallery_image_paths = joblib.load(os.path.join(data_dir, 'gallery_imagePaths.pkl'))
 
     sum_right = 0
     count = 0
