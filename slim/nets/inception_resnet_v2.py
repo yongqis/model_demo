@@ -279,7 +279,7 @@ def inception_resnet_v2(inputs, num_classes=1001, is_training=True,
                         scope='InceptionResnetV2',
                         create_aux_logits=True,
                         activation_fn=tf.nn.relu,
-                        mid_feature=None):
+                        base_final_endpoint=None):
     """Creates the Inception Resnet V2 model.
 
     Args:
@@ -311,7 +311,7 @@ def inception_resnet_v2(inputs, num_classes=1001, is_training=True,
 
             net, end_points = inception_resnet_v2_base(inputs, scope=scope,
                                                        activation_fn=activation_fn,
-                                                       final_endpoint=mid_feature)
+                                                       final_endpoint=base_final_endpoint)
 
             if create_aux_logits and num_classes:
                 with tf.variable_scope('AuxLogits'):

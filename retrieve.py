@@ -16,6 +16,15 @@ data_dir_dict = {'gallery': r'D:\Picture\Nestle\Nestle_for_retrieval\train',
                  'query': r'D:\Picture\Nestle\Nestle_for_retrieval\query'}
 
 
+def preprocess(image_path, input_shape):
+    img = cv2.imread(image_path)
+    img = cv2.resize(img, (input_shape[1], input_shape[2]))  # resize
+    img = img.astype(np.float32)  # keras for_mat
+    img = (2.0 / 255.0) * img - 1.0
+    batch_img = np.expand_dims(img, 0)  # batch_size
+    return batch_img
+
+
 def build_gallery(sess, input_shape, intput, output, data_dir):
     print('Start building gallery...')
 
@@ -28,21 +37,16 @@ def build_gallery(sess, input_shape, intput, output, data_dir):
     feature_list = []
     for i, image_path in enumerate(image_paths):
         print(i+1)
-        img = cv2.imread(image_path)
-        img = cv2.resize(img, (input_shape[1], input_shape[2]))  # resize
-        img = img.astype(np.float32)  # keras for_mat
-        img = (2.0 / 255.0) * img - 1.0
-        batch_img = np.expand_dims(img, 0)  # batch_size
-
+        batch_img = preprocess(image_path, input_shape)
         batch_embedding = sess.run(output, feed_dict={intput: batch_img})
         embedding = np.squeeze(batch_embedding)  # 去掉batch维
         feature_list.append(embedding)  # 加入list
 
     # save feature
     feature_list = np.array(feature_list)
-    joblib.dump(truth_image_dict, data_dir + '/label_dict.pkl')
-    joblib.dump(feature_list, data_dir + '/gallery_features.pkl')
-    joblib.dump(image_paths, data_dir + '/gallery_imagePaths.pkl')
+    joblib.dump(truth_image_dict, os.path.join(data_dir, 'label_dict.pkl'))
+    joblib.dump(feature_list, os.path.join(data_dir, 'gallery_features.pkl'))
+    joblib.dump(image_paths, os.path.join(data_dir, 'gallery_imagePaths.pkl'))
 
     print('Finish building gallery!')
 
@@ -62,14 +66,7 @@ def singel_query(sess, top_k, input_shape, input, output, data_dir):
     for i, query_image_path in enumerate(query_image_paths):
         print(i + 1)
         # precess image
-        img = cv2.imread(query_image_path)
-        # if img.shape[0] * img.shape[1] < 6400:
-        #     print('too small')
-        #     continue
-        img = cv2.resize(img, (input_shape[1], input_shape[2]))  # resize
-        img = img.astype(np.float32)  #
-        img = (2.0 / 255.0) * img - 1.0
-        batch_img = np.expand_dims(img, 0)  # batch_size
+        batch_img = preprocess(query_image_path, input_shape)
         # get embeddings
         batch_embedding = sess.run(output, feed_dict={input: batch_img})
         embedding = np.squeeze(batch_embedding)  # 去掉batch维
@@ -91,21 +88,24 @@ def singel_query(sess, top_k, input_shape, input, output, data_dir):
     print("TOP-k:", precision)
 
 
-def retrieve(data_dir, model_path, top_k, only_query):
-    params_path = 'cnn_model\\saved_model\\inception_resnet_v2\\params.json'
+def retrieve(data_dir, model_dir, top_k, only_query, model_saved_num=None):
+    params_path = os.path.join(model_dir, 'params.json')
     params = Params(params_path)
+    if model_saved_num:
+        model_path = os.path.join(model_dir, 'model.ckpt-'+str(model_saved_num))
+    else:
+        model_path = tf.train.get_checkpoint_state(model_dir).model_checkpoint_path
+
     input_shape = (None, params.image_size, params.image_size, 3)
 
     # build graph
     with tf.variable_scope('model'):
         images = tf.placeholder(dtype=tf.float32, shape=input_shape)
-        # embeddings, _ = vgg.vgg_16(inputs=images, is_training=False, num_classes=num_classes) \
-        # Compute the embeddings with the model
         embeddings, _, _ = inception_resnet_v2.inception_resnet_v2(inputs=images,
                                                                    is_training=False,
                                                                    num_classes=params.embedding_size,
                                                                    create_aux_logits=False,
-                                                                   mid_feature='Mixed_6a')
+                                                                   mid_feature=params.final_endpoint)
 
     with tf.Session() as sess:
         # load param
@@ -117,7 +117,9 @@ def retrieve(data_dir, model_path, top_k, only_query):
 
 
 if __name__ == '__main__':
-    saved_data_dir = "cnn_model/saved_data"
-    saved_model_path = r"cnn_model\saved_model\inception_resnet_v2\model.ckpt-27000"
-    retrieve(saved_data_dir, saved_model_path, 1, only_query=False)
+    retrieve(data_dir='',
+             model_dir='',
+             top_k=1,
+             only_query=False,
+             model_saved_num=None)
 

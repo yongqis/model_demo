@@ -33,7 +33,7 @@ def model_fn(features, labels, mode, params):
                                                                    is_training=is_training,
                                                                    num_classes=params.embedding_size,
                                                                    create_aux_logits=False,
-                                                                   mid_feature='Mixed_6a')
+                                                                   base_final_endpoint=params.final_endpoint)
 
     embedding_mean_norm = tf.reduce_mean(tf.norm(embeddings, axis=1))
     tf.summary.scalar("embedding_mean_norm", embedding_mean_norm)
