@@ -99,7 +99,7 @@ def get_dict(root_path):
             if file.endswith('.jpg'):
                 image = os.path.join(c_folder, file)
                 image_list.append(image)
-        label = c_folder.split('\\')[-1]
+        label = os.path.split(c_folder)[-1]
         truth_dict[label] = image_list
     return truth_dict
 
@@ -116,7 +116,7 @@ def compute_topk(score, gallery_images, truth_images, query_image, top_k):
         while find_self:
             if retrieve_image in truth_images:
                 # 文件名不同，不是同一张图片
-                if retrieve_image.split('\\')[-1] != query_image.split('\\')[-1]:
+                if os.path.split(retrieve_image)[-1] != os.path.split(query_image)[-1]:
                     true_num += 1
                     find_self = False
                 # 文件名相同，找到自己，忽略，计算top2
@@ -135,8 +135,8 @@ def compute_topk(score, gallery_images, truth_images, query_image, top_k):
                 # plt.imshow(error_im)
                 # plt.title('error label: %s' % a.split('\\')[-2])
                 # plt.show()
-                print('true label:', query_image.split('\\')[-2])
-                print('error label', retrieve_image.split('\\')[-2])
+                print('true label:', os.path.split(query_image)[-2])
+                print('error label', os.path.split(retrieve_image)[-2])
                 print('---------')
 
                 find_self = False

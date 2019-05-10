@@ -95,7 +95,7 @@ def single_query(sess, top_k, input_shape, input, output, base_image_dir, galler
         embedding = np.squeeze(batch_embedding)  # 去掉batch维
         # retrieve
         query_feature = embedding
-        query_label = query_image_path.split('\\')[-2]
+        query_label = os.path.split(query_image_path)[-2]
         cos_sim = np.dot(query_feature, gallery_features.T)
         cos_sim = 0.5 + 0.5 * cos_sim
         sorted_indices = np.argsort(-cos_sim)
