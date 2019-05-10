@@ -146,3 +146,27 @@ def compute_topk(score, gallery_images, truth_images, query_image, top_k):
         success = True
 
     return success
+
+
+def image_size(img_dir):
+    import os
+    import cv2
+
+    small_num = 0
+    mid_num = 0
+    large_num = 0
+    for cur_folder, sub_folders, sub_files in os.walk(img_dir):
+        for file in sub_files:
+            if file.endswith('jpg'):
+                img = cv2.imread(os.path.join(cur_folder, file))
+                pixel_areas = img.shape[0] * img.shape[1]
+                if pixel_areas < 3600:
+                    small_num += 1
+                elif pixel_areas < 8100:
+                    mid_num += 1
+                else:
+                    large_num += 1
+
+    print('small num:', small_num)
+    print('mid_num:', mid_num)
+    print('large_num:', large_num)
