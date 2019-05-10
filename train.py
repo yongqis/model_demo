@@ -48,8 +48,6 @@ if __name__ == '__main__':
         for file in sub_files:
             if file.endswith('jpg'):
                 img = cv2.imread(os.path.join(cur_folder, file))
-                if img.shape[0] * img.shape[1] < 3600:
-                    continue
                 train_data_num += 1
                 image_path_list.append(os.path.join(cur_folder, file))
                 image_label_list.append(label_map[os.path.split(cur_folder)[-1]])
