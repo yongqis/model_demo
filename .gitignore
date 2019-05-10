@@ -10,3 +10,7 @@ gen
 saved_data
 saved_model
 
+__pycache__/
+slim/__pycache__/
+slim/nets/__pycache__/
+utils/__pycache__/
