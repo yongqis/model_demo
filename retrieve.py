@@ -2,6 +2,7 @@
 # -*- coding:utf-8 -*-\
 import os
 import cv2
+import argparse
 import numpy as np
 import tensorflow as tf
 from slim.nets import vgg
@@ -10,6 +11,12 @@ from sklearn.externals import joblib
 from sklearn.preprocessing import normalize
 from utils.utils import Params
 from utils.utils import get_ab_path, get_dict, compute_topk
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--model_dir', default='saved_model', help="Experiment directory containing params.json and ckpt")
+parser.add_argument('--image_dir', default='', help="Directory containing the query image and gallery image folders")
+parser.add_argument('--data_dir', default='saved_data', help='')
+parser.add_argument('--load_model_num', default=None, help='')
 
 
 def preprocess(image_path, input_shape):
@@ -111,11 +118,9 @@ def single_query(sess, top_k, input_shape, input, output, base_image_dir, galler
     print("TOP-k:", precision)
 
 
-def retrieve(top_k, only_query, model_dir, base_image_dir, gallery_data_dir, model_saved_num=None):
+def retrieve(model_dir, base_image_dir, gallery_data_dir, model_saved_num=None):
     """
 
-    :param top_k: 取top_k个检索结果 计算准确率
-    :param only_query: 如果已经进行了build_gallery，将只执行single_query
     :param base_image_dir: 图片根目录，内有两个子文件夹，query和gallery，都保存有图片
     :param gallery_data_dir: build_gallery将数据保存在此目录，single_query从此目录读取数据
     :param model_dir: 目录下保存训练模型的和模型参数文件params.json
@@ -128,12 +133,13 @@ def retrieve(top_k, only_query, model_dir, base_image_dir, gallery_data_dir, mod
     params_path = os.path.join(model_dir, 'params.json')
     params = Params(params_path)
     if model_saved_num:
-        model_path = os.path.join(model_dir, 'model.ckpt-'+str(model_saved_num))
+        model_path = os.path.join(model_dir, 'model.ckpt-' + model_saved_num)
     else:
         model_path = tf.train.get_checkpoint_state(model_dir).model_checkpoint_path
 
     input_shape = (None, params.image_size, params.image_size, 3)
-
+    top_k = params.top_K
+    only_query = params.only_query
     # build graph
     with tf.variable_scope('model'):
         images = tf.placeholder(dtype=tf.float32, shape=input_shape)
@@ -153,10 +159,9 @@ def retrieve(top_k, only_query, model_dir, base_image_dir, gallery_data_dir, mod
 
 
 if __name__ == '__main__':
-    retrieve(top_k=1,
-             only_query=True,
-             model_dir='saved_model',
-             base_image_dir=r'D:\Picture\Nestle\Nestle_for_retrieval',
-             gallery_data_dir='saved_data',
-             model_saved_num=26937)
+    args = parser.parse_args()
+    retrieve(model_dir=args.model_dir,
+             base_image_dir=args.image_dir,
+             gallery_data_dir=args.data_dir,
+             model_saved_num=args.load_model_num)
 
