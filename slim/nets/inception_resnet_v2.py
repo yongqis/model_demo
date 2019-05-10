@@ -296,7 +296,7 @@ def inception_resnet_v2(inputs, num_classes=1001, is_training=True,
       scope: Optional variable_scope.
       create_aux_logits: Whether to include the auxilliary logits.
       activation_fn: Activation function for conv2d.
-      mid_feature: hlkj
+      base_final_endpoint: get feature map from this
     Returns:
       net: the output of the logits layer (if num_classes is a non-zero integer),
         or the non-dropped-out input to the logits layer (if num_classes is 0 or
