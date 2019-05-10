@@ -21,5 +21,7 @@
     "num_labels": 456,
     "eval_size": 10000,
     "num_parallel_calls": 4,
-    "save_summary_steps": 500
+    "save_summary_steps": 500,
+    "top_k": 1,
+    "only_query": false
 }
