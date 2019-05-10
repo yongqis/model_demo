@@ -1,7 +1,9 @@
 """General utility functions"""
 import os
+import cv2
 import json
 import logging
+from utils.label_map_util import get_label_map_dict
 
 
 class Params():
@@ -88,6 +90,22 @@ def get_ab_path(root_path):
                 # print(image)
                 image_paths.append(image)
     return image_paths
+
+
+def get_data(train_data_dir, label_map_path):
+    label_map = get_label_map_dict(label_map_path)  # lable_map[name:id] id begin with 1
+    image_path_list = []
+    image_label_list = []
+    train_data_num = 0
+    for cur_folder, sub_folders, sub_files in os.walk(train_data_dir):
+        for file in sub_files:
+            if file.endswith('jpg'):
+                train_data_num += 1
+                image_path_list.append(os.path.join(cur_folder, file))
+                image_label_list.append(label_map[os.path.split(cur_folder)[-1]])
+    print('train_image_num:', train_data_num)
+    data_tuple = (image_path_list, image_label_list)
+    return data_tuple
 
 
 def get_dict(root_path):

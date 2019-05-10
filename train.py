@@ -8,7 +8,7 @@ import tensorflow as tf
 from utils.input_fn import train_input_fn
 from utils.model_fn import model_fn
 from utils.utils import Params
-from utils import label_map_util
+from utils.utils import get_data
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model_dir', default='saved_model', help="Experiment directory containing params.json")
@@ -29,7 +29,6 @@ if __name__ == '__main__':
     assert os.path.isfile(label_map_path), "No label map file found at {}".format(label_map_path)
     assert os.path.isdir(train_data_dir), "No folder found at {}".format(train_data_dir)
     params = Params(model_params_path)
-    label_map = label_map_util.get_label_map_dict(label_map_path)
 
     # Config the train param
     config = tf.estimator.RunConfig(tf_random_seed=230,
@@ -41,19 +40,8 @@ if __name__ == '__main__':
     tf.logging.info("Creating the model...")
     estimator = tf.estimator.Estimator(model_fn, params=params, config=config)
     # Process input data
-    image_path_list = []
-    image_label_list = []
-    train_data_num = 0
-    for cur_folder, sub_folders, sub_files in os.walk(train_data_dir):
-        for file in sub_files:
-            if file.endswith('jpg'):
-                img = cv2.imread(os.path.join(cur_folder, file))
-                train_data_num += 1
-                image_path_list.append(os.path.join(cur_folder, file))
-                image_label_list.append(label_map[os.path.split(cur_folder)[-1]])
-    print('train_image_num:', train_data_num)
-    data_list = (image_path_list, image_label_list)
+    data_tuple = get_data(train_data_dir, label_map_path)
 
     # Train the model
     tf.logging.info("Starting training for {} epoch(s).".format(params.num_epochs))
-    estimator.train(lambda: train_input_fn(data_list, params))
+    estimator.train(lambda: train_input_fn(data_tuple, params))
