@@ -13,7 +13,8 @@ from utils import label_map_util
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model_dir', default='saved_model', help="Experiment directory containing params.json")
-parser.add_argument('--image_dir', default='', help="Directory containing the query image and gallery image folders")
+parser.add_argument('--image_dir', default='',
+                    help="Directory containing the query image and gallery image folders")
 # parser.add_argument('--test_data_dir')
 
 
