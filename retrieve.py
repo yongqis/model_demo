@@ -95,7 +95,7 @@ def single_query(sess, top_k, input_shape, input, output, base_image_dir, galler
         embedding = np.squeeze(batch_embedding)  # 去掉batch维
         # retrieve
         query_feature = embedding
-        query_label = os.path.split(query_image_path)[-2]
+        query_label = os.path.split(os.path.dirname(query_image_path))[-1]
         cos_sim = np.dot(query_feature, gallery_features.T)
         cos_sim = 0.5 + 0.5 * cos_sim
         sorted_indices = np.argsort(-cos_sim)
@@ -154,9 +154,9 @@ def retrieve(top_k, only_query, model_dir, base_image_dir, gallery_data_dir, mod
 
 if __name__ == '__main__':
     retrieve(top_k=1,
-             only_query=False,
-             model_dir='',
-             base_image_dir='',
-             gallery_data_dir='',
-             model_saved_num=None)
+             only_query=True,
+             model_dir='saved_model',
+             base_image_dir=r'D:\Picture\Nestle\Nestle_for_retrieval',
+             gallery_data_dir='saved_data',
+             model_saved_num=26937)
 

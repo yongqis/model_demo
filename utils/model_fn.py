@@ -2,11 +2,11 @@
 
 import tensorflow as tf
 
-from model_demo.utils.triplet_loss import batch_all_triplet_loss
-from model_demo.utils.triplet_loss import batch_hard_triplet_loss
-from model_demo.utils.triplet_loss import batch_semi_hard_triplet_loss
-from model_demo.slim.nets import vgg
-from model_demo.slim.nets import inception_resnet_v2
+from utils.triplet_loss import batch_all_triplet_loss
+from utils.triplet_loss import batch_hard_triplet_loss
+from utils.triplet_loss import batch_semi_hard_triplet_loss
+from slim.nets import vgg
+from slim.nets import inception_resnet_v2
 
 
 def model_fn(features, labels, mode, params):

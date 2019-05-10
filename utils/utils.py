@@ -135,8 +135,8 @@ def compute_topk(score, gallery_images, truth_images, query_image, top_k):
                 # plt.imshow(error_im)
                 # plt.title('error label: %s' % a.split('\\')[-2])
                 # plt.show()
-                print('true label:', os.path.split(query_image)[-2])
-                print('error label', os.path.split(retrieve_image)[-2])
+                print('true label:', os.path.split(os.path.dirname(query_image))[-1])
+                print('error label', os.path.split(os.path.dirname(retrieve_image))[-1])
                 print('---------')
 
                 find_self = False

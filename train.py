@@ -43,7 +43,7 @@ if __name__ == '__main__':
     # Process input data
     image_path_list = []
     image_label_list = []
-    for cur_folder, sub_folders, sub_files in os.walk(args.train_data_dir):
+    for cur_folder, sub_folders, sub_files in os.walk(args.image_dir):
         for file in sub_files:
             if file.endswith('jpg'):
                 image_path_list.append(os.path.join(cur_folder, file))

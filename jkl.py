@@ -2,10 +2,8 @@
 # -*- coding:utf-8 -*-
 import tensorflow as tf
 import numpy as np
+import os
 
-a = tf.constant([[1, 2, 36, 8], [3, 23, 7, 2]])
-
-c = tf.constant([[1,2,3, 4], [1,2,3, 4]])
-d = a*c
-sess = tf.Session()
-print(sess.run(d))
+path = 'a/b/c/66.txt'
+label = os.path.split(os.path.dirname(path))
+print(label)
