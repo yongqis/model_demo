@@ -7,9 +7,6 @@
 *.iml
 out
 gen
-.gitignore
-.idea/
-__pycache__/
-slim/__pycache__/
-slim/nets/__pycache__/
-utils/__pycache__/
+saved_data
+saved_model
+
