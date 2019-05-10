@@ -35,7 +35,8 @@ if __name__ == '__main__':
     config = tf.estimator.RunConfig(tf_random_seed=230,
                                     model_dir=args.model_dir,
                                     save_summary_steps=params.save_summary_steps,
-                                    save_checkpoints_steps=2*params.save_summary_steps)
+                                    save_checkpoints_steps=2*params.save_summary_steps,
+                                    keep_checkpoint_every_n_hours=0.5)
     # Define the model
     tf.logging.info("Creating the model...")
     estimator = tf.estimator.Estimator(model_fn, params=params, config=config)
