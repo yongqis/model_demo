@@ -2,6 +2,7 @@
 # -*- coding:utf-8 -*-\
 import os
 import cv2
+import shutil
 import argparse
 import numpy as np
 import tensorflow as tf
@@ -85,6 +86,9 @@ def single_query(sess, top_k, input_shape, input_node, output_node, base_image_d
     """
     image_dir = os.path.join(base_image_dir, 'query')
     query_image_paths = get_ab_path(image_dir)  # 文件目录下所有图片的绝对路径
+
+    saved_error_dir = os.path.join(gallery_data_dir, 'error_pairs')
+    assert os.path.isdir(saved_error_dir), saved_error_dir
     # load gallery
     lablel_map = joblib.load(os.path.join(gallery_data_dir, 'label_dict.pkl'))
     gallery_features = joblib.load(os.path.join(gallery_data_dir, 'gallery_features.pkl'))
@@ -110,6 +114,17 @@ def single_query(sess, top_k, input_shape, input_node, output_node, base_image_d
 
         truth_image_paths = lablel_map[query_label]
         is_right = compute_topk(sorted_indices, gallery_image_paths, truth_image_paths, query_image_path, top_k)
+        if not is_right:
+            retrieve_image = gallery_image_paths[sorted_indices[1]]
+            query_save_path = os.path.join(saved_error_dir, os.path.basename(query_image_path))
+            shutil.copy(query_image_path, query_save_path)
+            query_save_path_new = os.path.join(saved_error_dir, str(i+1)+'_'+os.path.basename(query_image_path))
+            os.rename(query_save_path, query_save_path_new)
+
+            error_save_path = os.path.join(saved_error_dir, os.path.basename(retrieve_image))
+            shutil.copy(retrieve_image, error_save_path)
+            error_save_path_new = os.path.join(saved_error_dir, str(i+1)+'_'+os.path.basename(retrieve_image))
+            os.rename(error_save_path, error_save_path_new)
 
         sum_right += is_right
         count += 1

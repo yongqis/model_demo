@@ -142,21 +142,11 @@ def compute_topk(score, gallery_images, truth_images, query_image, top_k):
                     retrieve_image = gallery_images[score[score_id+1]]
 
             else:
-                # 展示错误的检索结果
-
-                # truth_im = plt.imread(query_image)
-                # error_im = plt.imread(a)
-                # plt.subplot(1, 2, 1)
-                # plt.imshow(truth_im)
-                # plt.title('true label: %s' % query_image.split('\\')[-2])
-                # plt.subplot(1, 2, 2)
-                # plt.imshow(error_im)
-                # plt.title('error label: %s' % a.split('\\')[-2])
-                # plt.show()
-                print('true label:', os.path.split(os.path.dirname(query_image))[-1])
-                print('error label', os.path.split(os.path.dirname(retrieve_image))[-1])
+                true_label = os.path.split(os.path.dirname(query_image))[-1]
+                error_label = os.path.split(os.path.dirname(retrieve_image))[-1]
+                print('true label:', true_label)
+                print('error label', error_label)
                 print('---------')
-
                 find_self = False
     # top-k中正确的个数大于0.5 认为该张query图片检索正确
     precision = true_num / top_k
