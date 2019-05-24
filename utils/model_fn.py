@@ -29,11 +29,20 @@ def model_fn(features, labels, mode, params):
     # MODEL: define the layers of the model
     with tf.variable_scope('model'):
         # Compute the embeddings with the model
-        embeddings, _, _ = inception_resnet_v2.inception_resnet_v2(inputs=images,
-                                                                   is_training=is_training,
-                                                                   num_classes=params.embedding_size,
-                                                                   create_aux_logits=False,
-                                                                   base_final_endpoint=params.final_endpoint)
+        # embeddings, _, _ = inception_resnet_v2.inception_resnet_v2(inputs=images,
+        #                                                            is_training=is_training,
+        #                                                            num_classes=params.embedding_size,
+        #                                                            create_aux_logits=False,
+        #                                                            base_final_endpoint=params.final_endpoint)
+        embeddings = vgg.vgg_16(
+            inputs=images,
+            num_classes=params.num_labels,
+            is_training=is_training,
+            dropout_keep_prob=0.5,
+            spatial_squeeze=True,
+            scope='vgg_16',
+            fc_conv_padding='VALID',
+            global_pool=True)
 
     embedding_mean_norm = tf.reduce_mean(tf.norm(embeddings, axis=1))
     tf.summary.scalar("embedding_mean_norm", embedding_mean_norm)
@@ -47,8 +56,6 @@ def model_fn(features, labels, mode, params):
     # Define triplet loss
     if params.triplet_strategy == "batch_all":
         loss, fraction = batch_all_triplet_loss(labels, embeddings, margin=params.margin, squared=params.squared)
-    elif params.triplet_strategy == "batch_semi_hard":
-        loss, fraction = batch_semi_hard_triplet_loss(labels, embeddings, margin=params.margin, squared=params.squared)
     elif params.triplet_strategy == "batch_hard":
         loss = batch_hard_triplet_loss(labels, embeddings, margin=params.margin, squared=params.squared)
     else:
@@ -61,7 +68,7 @@ def model_fn(features, labels, mode, params):
     with tf.variable_scope("metrics"):
         eval_metric_ops = {"embedding_mean_norm": tf.metrics.mean(embedding_mean_norm)}
 
-        if params.triplet_strategy == "batch_all" or params.triplet_strategy == 'batch_semi_hard':
+        if params.triplet_strategy == "batch_all" :
             eval_metric_ops['fraction_positive_triplets'] = tf.metrics.mean(fraction)
 
     if mode == tf.estimator.ModeKeys.EVAL:

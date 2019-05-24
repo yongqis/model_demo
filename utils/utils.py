@@ -2,6 +2,7 @@
 import os
 import cv2
 import json
+import shutil
 import logging
 from utils.label_map_util import get_label_map_dict
 
@@ -120,40 +121,6 @@ def get_dict(root_path):
         label = os.path.split(c_folder)[-1]
         truth_dict[label] = image_list
     return truth_dict
-
-
-def compute_topk(score, gallery_images, truth_images, query_image, top_k):
-    true_num = 0
-    error_num = 0
-    success = False
-
-    for score_id in range(top_k):
-        retrieve_image = gallery_images[score[score_id]]
-        find_self = True
-
-        while find_self:
-            if retrieve_image in truth_images:
-                # 文件名不同，不是同一张图片
-                if os.path.split(retrieve_image)[-1] != os.path.split(query_image)[-1]:
-                    true_num += 1
-                    find_self = False
-                # 文件名相同，找到自己，忽略，计算top2
-                else:
-                    retrieve_image = gallery_images[score[score_id+1]]
-
-            else:
-                true_label = os.path.split(os.path.dirname(query_image))[-1]
-                error_label = os.path.split(os.path.dirname(retrieve_image))[-1]
-                print('true label:', true_label)
-                print('error label', error_label)
-                print('---------')
-                find_self = False
-    # top-k中正确的个数大于0.5 认为该张query图片检索正确
-    precision = true_num / top_k
-    if precision >= 0.5:
-        success = True
-
-    return success
 
 
 def image_size(img_dir):

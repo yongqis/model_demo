@@ -5,6 +5,7 @@
     "image_size": 96,
 
     "embedding_size": 256,
+
     "base_model": "inception_resnet_v2",
     "final_endpoint": "PreAuxLogits",
     "use_l2norm": true,
@@ -15,7 +16,7 @@
     "learning_rate": 1e-5,
 
     "margin": 0.3,
-    "triplet_strategy": "batch_semi_hard",
+    "triplet_strategy": "batch_all",
     "squared": true,
 
     "num_labels": 456,

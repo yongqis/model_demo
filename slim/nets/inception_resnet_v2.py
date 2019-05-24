@@ -278,8 +278,7 @@ def inception_resnet_v2(inputs, num_classes=1001, is_training=True,
                         reuse=None,
                         scope='InceptionResnetV2',
                         create_aux_logits=True,
-                        activation_fn=tf.nn.relu,
-                        base_final_endpoint=None):
+                        activation_fn=tf.nn.relu):
     """Creates the Inception Resnet V2 model.
 
     Args:
@@ -296,7 +295,6 @@ def inception_resnet_v2(inputs, num_classes=1001, is_training=True,
       scope: Optional variable_scope.
       create_aux_logits: Whether to include the auxilliary logits.
       activation_fn: Activation function for conv2d.
-      base_final_endpoint: get feature map from this
     Returns:
       net: the output of the logits layer (if num_classes is a non-zero integer),
         or the non-dropped-out input to the logits layer (if num_classes is 0 or
@@ -309,9 +307,7 @@ def inception_resnet_v2(inputs, num_classes=1001, is_training=True,
 
         with slim.arg_scope([slim.batch_norm, slim.dropout], is_training=is_training):
 
-            net, end_points = inception_resnet_v2_base(inputs, scope=scope,
-                                                       activation_fn=activation_fn,
-                                                       final_endpoint=base_final_endpoint)
+            net, end_points = inception_resnet_v2_base(inputs, scope=scope, activation_fn=activation_fn)
 
             if create_aux_logits and num_classes:
                 with tf.variable_scope('AuxLogits'):
@@ -342,8 +338,8 @@ def inception_resnet_v2(inputs, num_classes=1001, is_training=True,
                 logits = slim.fully_connected(net, num_classes, activation_fn=None, scope='Logits')
                 end_points['Logits'] = logits
                 end_points['Predictions'] = tf.nn.softmax(logits, name='Predictions')
-                embeddings = tf.nn.l2_normalize(logits, axis=1)
-        return embeddings, logits, end_points
+                # embeddings = tf.nn.l2_normalize(logits, axis=1)
+        return logits, end_points
 
 
 inception_resnet_v2.default_image_size = 299
