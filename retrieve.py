@@ -50,10 +50,10 @@ def retrieve(model_dir, base_image_dir, gallery_data_dir, saved_model_path=None)
             scope='vgg_16',
             fc_conv_padding='VALID',
             global_pool=False)
-    embeddings = tf.nn.l2_normalize(final_output, axis=1)
 
-    # # encode
-    # embeddings = retrieve_util.encode()  # or output_dict['layer_name']
+    # encode & normalize
+    embeddings = retrieve_util.encode(feature_dict['layer_name'])  # or
+
     # run
     with tf.Session() as sess:
         # load model

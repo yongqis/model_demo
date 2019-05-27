@@ -200,14 +200,14 @@ def vgg_16(inputs,
             # Use conv2d instead of fully_connected layers. 使用全局卷积代替展开操作
             net = slim.conv2d(net, 512, [4, 4], padding=fc_conv_padding, scope='fc6')
             net = slim.dropout(net, dropout_keep_prob, is_training=is_training, scope='dropout6')
-            # net = slim.conv2d(net, 512, [1, 1], scope='fc7')
+            net = slim.conv2d(net, 512, [1, 1], scope='fc7')
             # Convert end_points_collection into a end_point dict.
             end_points = slim.utils.convert_collection_to_dict(end_points_collection)
             if global_pool:
                 net = tf.reduce_mean(net, [1, 2], keepdims=True, name='global_pool')
                 end_points['global_pool'] = net
             if num_classes:
-                # net = slim.dropout(net, dropout_keep_prob, is_training=is_training, scope='dropout7')
+                net = slim.dropout(net, dropout_keep_prob, is_training=is_training, scope='dropout7')
                 net = slim.conv2d(net, num_classes, [1, 1],
                                   activation_fn=None,
                                   normalizer_fn=None,
