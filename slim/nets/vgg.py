@@ -43,7 +43,7 @@ from __future__ import print_function
 
 import tensorflow as tf
 
-slim = tf.contrib.slim
+slim = tf.contrib.slim.python.slim
 
 
 def vgg_arg_scope(weight_decay=0.0005):

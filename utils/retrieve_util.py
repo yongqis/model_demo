@@ -33,7 +33,7 @@ def encode(feature_map):
     emb_avg = tf.reduce_mean(feature_map, axis=[1, 2])
     # emb_max = tf.reduce_max(feature_map, aixs=[1, 2])
     # emb = tf.concat([emb_avg, emb_max], axis=1)
-    embeddings = tf.nn.l2_normalize(emb, axis=1)
+    embeddings = tf.nn.l2_normalize(emb_avg, axis=1)
     # 降维
     return embeddings
 
@@ -136,7 +136,9 @@ def image_query(sess, input_shape, input_node, output_node, base_image_dir, gall
 
 def get_topk(score, gallery_images, truth_images, query_image, top_k=5, saved_error_dir=None, query_id=None):
     """
-
+    根据相似度得分，从高到低依次检查检索结果是否正确，
+    并将结果保存的res_dict中，key为label名，
+    最后使用多数表决规则决定最终的检索类别
     :param score: 排序后的相似度得分-值为对应的索引
     :param gallery_images: 数据集中所有图片路径
     :param truth_images: 正确范围的图片路径
@@ -147,19 +149,22 @@ def get_topk(score, gallery_images, truth_images, query_image, top_k=5, saved_er
     :return:
     """
 
-    res_list = []
+    res_dict = {}
     stage_list = []
+
     bias = 0  # 如果查询到自身图片，需要跳过，
     for i, index in enumerate(score):
         i += bias
         if i == top_k:
             break
         res_image = gallery_images[index]  # 检索出来的图片
+
         # 查找正确
         if res_image in truth_images:
             # 文件名不同，不是同一张图片，则结果正确
             if os.path.split(res_image)[-1] != os.path.split(query_image)[-1]:
-                res_list.append(1)
+                res_dict.setdefault('right_label', 0)
+                res_dict['right_label'] += 1
             # 文件名相同，找到自己，忽略，查看下一个
             else:
                 bias = -1
@@ -167,12 +172,11 @@ def get_topk(score, gallery_images, truth_images, query_image, top_k=5, saved_er
                 continue
         # 查找错误，拷贝出来图片进行分析
         else:
-            res_list.append(0)
+
             truth_label = os.path.split(os.path.dirname(query_image))[-1]
             error_label = os.path.split(os.path.dirname(res_image))[-1]
-            # print('truth label:', truth_label)
-            # print('error label:', error_label)
-            # print('---------')
+            res_dict.setdefault(error_label, 0)
+            res_dict[error_label] += 1
             if saved_error_dir:
                 # 查询图片处理
                 copy_path = os.path.join(saved_error_dir, os.path.basename(query_image))
@@ -195,12 +199,12 @@ def get_topk(score, gallery_images, truth_images, query_image, top_k=5, saved_er
                 # 2.改名
                 os.rename(copy_path, new_name)
 
-        # 奇数次时，检查多数项
-        if i % 2 == 0:
-            flag = bool(sum(res_list) > i//2)
-            if flag:
-                stage_list.append(1)
-            else:
-                stage_list.append(0)
-            # print('top-{} is {}'.format(i+1, flag))
+        # 检查当前top-i轮的多数项作为结果是否正负，stage_list.append(1 or 0)
+        max_times = 0
+        max_label = 0
+        for key, value in res_dict.items():
+            if value > max_times:
+                max_label = key
+        max_label = 'right_label' if max_times is 1 else max_label
+        stage_list.append(int(max_label == 'right_label'))
     return stage_list
