@@ -25,22 +25,11 @@ def model_fn(features, labels, mode, params):
     assert images.shape[1:] == [params.image_size, params.image_size, 3], "{}".format(images.shape)
 
     # MODEL: define the layers of the model
-    with tf.variable_scope('model'):
-        # Compute the embeddings with the model
-        # embeddings, _, _ = inception_resnet_v2.inception_resnet_v2(inputs=images,
-        #                                                            is_training=is_training,
-        #                                                            num_classes=params.embedding_size,
-        #                                                            create_aux_logits=False,
-        #                                                            base_final_endpoint=params.final_endpoint)
-        embeddings = vgg.vgg_16(
-            inputs=images,
-            num_classes=params.embedding_size,
-            is_training=is_training,
-            dropout_keep_prob=0.8,
-            spatial_squeeze=True,
-            scope='vgg_16',
-            fc_conv_padding='VALID',
-            global_pool=False)
+    embeddings = vgg.vgg_16(
+        inputs=images,
+        num_classes=params.embedding_size,
+        is_training=is_training,
+        dropout_keep_prob=params.dropout_keep_prob)
 
     embedding_mean_norm = tf.reduce_mean(tf.norm(embeddings, axis=1))
     tf.summary.scalar("embedding_mean_norm", embedding_mean_norm)

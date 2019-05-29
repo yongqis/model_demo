@@ -39,31 +39,22 @@ def retrieve(model_dir, base_image_dir, gallery_data_dir, saved_model_path=None)
     input_shape = (None, params.image_size, params.image_size, 3)
 
     # build graph, feature_dict
-    with tf.variable_scope('model'):
-        images = tf.placeholder(dtype=tf.float32, shape=input_shape)
-        final_output = vgg.vgg_16(
-            inputs=images,
-            num_classes=256,
-            is_training=False,
-            dropout_keep_prob=0.8,
-            spatial_squeeze=True,
-            scope='vgg_16',
-            fc_conv_padding='VALID',
-            global_pool=False)
+    images = tf.placeholder(dtype=tf.float32, shape=input_shape)
+    final_output = vgg.vgg_16(
+        inputs=images,
+        num_classes=params.embedding_size,
+        is_training=False)
 
     # encode & normalize
-    embeddings = tf.nn.l2_normalize(final_output, axis=1)
-    # embeddings = retrieve_util.encode(final_output)  # or
-    # load fn
-    # load_fn = slim.assign_from_checkpoint_fn('')
+    # embeddings = tf.nn.l2_normalize(final_output, axis=1)
+    embeddings = retrieve_util.encode(final_output)  # or
     # run
     with tf.Session() as sess:
+        sess.run(tf.global_variables_initializer())
         # load model
         saver = tf.train.Saver()
         saver.restore(sess, model_path)
-        #
-        # sess.run(tf.global_variables_initializer())
-        # load_fn(sess)
+        # 开始检索
         if not params.only_query:
             retrieve_util.build_gallery(sess, input_shape, images, embeddings, base_image_dir, gallery_data_dir)
         retrieve_util.image_query(sess, input_shape, images, embeddings, base_image_dir, gallery_data_dir, params.top_k)

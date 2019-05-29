@@ -21,7 +21,6 @@ if __name__ == '__main__':
 
     # Load the parameters from json file
     args = parser.parse_args()
-
     model_params_path = os.path.join(args.model_dir, 'params.json')
     label_map_path = os.path.join(args.image_dir, 'label_map.pbtxt')
     train_data_dir = os.path.join(args.image_dir, 'gallery/Nestle')

@@ -9,7 +9,7 @@
     "base_model": "inception_resnet_v2",
     "final_endpoint": "PreAuxLogits",
     "use_l2norm": true,
-    "use_dropout": false,
+    "dropout_keep_prob": 1.0,
     "use_batch_norm": true,
 
     "optimizer": "Adam",
