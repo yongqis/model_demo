@@ -30,8 +30,9 @@ def model_fn(features, labels, mode, params):
         num_classes=params.embedding_size,
         is_training=is_training,
         dropout_keep_prob=params.dropout_keep_prob)
-
+    # 增加一个l2 norm
     embedding_mean_norm = tf.reduce_mean(tf.norm(embeddings, axis=1))
+
     tf.summary.scalar("embedding_mean_norm", embedding_mean_norm)
 
     if mode == tf.estimator.ModeKeys.PREDICT:

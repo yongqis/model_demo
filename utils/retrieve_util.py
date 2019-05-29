@@ -24,17 +24,19 @@ def preprocess(image_path, input_shape):
     return batch_img
 
 
-def encode(feature_map):
+def encode(feature):
     """
 
-    :param feature_map: 4-D tensor [batch_size, height, width, channel]
+    :param feature: 4-D tensor [batch_size, height, width, channel]
     :return: 2-D tensor [batch_size, channel]
     """
-    emb_avg = tf.reduce_mean(feature_map, axis=[1, 2])
+    if tf.rank(feature) == 4:
+        feature = tf.reduce_mean(feature, axis=[1, 2])
     # emb_max = tf.reduce_max(feature_map, aixs=[1, 2])
     # emb = tf.concat([emb_avg, emb_max], axis=1)
-    embeddings = tf.nn.l2_normalize(emb_avg, axis=1)
-    # 降维
+    if tf.rank(feature) != 2:
+        raise ValueError('rank must be 2')
+    embeddings = tf.nn.l2_normalize(feature, axis=1)
     return embeddings
 
 

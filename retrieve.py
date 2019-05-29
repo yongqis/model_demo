@@ -40,7 +40,7 @@ def retrieve(model_dir, base_image_dir, gallery_data_dir, saved_model_path=None)
 
     # build graph, feature_dict
     images = tf.placeholder(dtype=tf.float32, shape=input_shape)
-    final_output = vgg.vgg_16(
+    final_output, feature_dict = vgg.vgg_16(
         inputs=images,
         num_classes=params.embedding_size,
         is_training=False)
