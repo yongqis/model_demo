@@ -43,7 +43,7 @@ from __future__ import print_function
 
 import tensorflow as tf
 
-slim = tf.contrib.slim.python.slim
+slim = tf.contrib.slim
 
 
 def vgg_arg_scope(weight_decay=0.0005):
@@ -215,7 +215,7 @@ def vgg_16(inputs,
                 if spatial_squeeze and num_classes is not None:
                     net = tf.squeeze(net, [1, 2], name='fc8/squeezed')
                 end_points[sc.name + '/fc8'] = net
-            return net, end_points
+            return net  # , end_points
 
 
 vgg_16.default_image_size = 224

@@ -57,10 +57,10 @@ def build_gallery(sess, input_shape, input_node, output_node, base_image_dir, ga
 
     truth_image_dict = get_dict(images_dir)  # 将同一类别的所有图片的路径存为字典
     image_paths = get_ab_path(images_dir)  # 文件目录下所有图片的绝对路径
-
+    nums = len(image_paths)
     feature_list = []
     for i, image_path in enumerate(image_paths):
-        print(i + 1)
+        print('{}/{}'.format(i+1, nums))
         batch_img = preprocess(image_path, input_shape)
         batch_embedding = sess.run(output_node, feed_dict={input_node: batch_img})
         embedding = np.squeeze(batch_embedding)  # 去掉batch维
@@ -101,7 +101,7 @@ def image_query(sess, input_shape, input_node, output_node, base_image_dir, gall
     # statistics params
     sum_list = []
     for i, query_image_path in enumerate(query_image_paths):
-        # if i == 500:
+        # if i == 100:
         #     break
         print('---------')
         print('{}/{}'.format(i, query_num))
@@ -128,10 +128,12 @@ def image_query(sess, input_shape, input_node, output_node, base_image_dir, gall
                             top_k, saved_error_dir=saved_error_label_dir, query_id=i)
         sum_list.append(res_list)
 
-    res_arr = np.array(sum_list)
-    ss = np.sum(res_arr, axis=0)/res_arr.shape[0]
+    sum_arr = np.array(sum_list)
+    ss = np.sum(sum_arr, axis=0)
+    ss = ss/sum_arr.shape[0]
+
     for i, value in enumerate(ss):
-        print('top-{} acc:{}'.format(i*2+1, value))
+        print('top-{} acc:{}'.format(i+1, value))
 
 
 def get_topk(score, gallery_images, truth_images, query_image, top_k=5, saved_error_dir=None, query_id=None):
@@ -169,12 +171,15 @@ def get_topk(score, gallery_images, truth_images, query_image, top_k=5, saved_er
             else:
                 bias = -1
                 # print('现在是top-{}，检索到了自己'.format(i))
+                # if i != 0:
+                # print(query_image)
                 continue
         # 查找错误，拷贝出来图片进行分析
         else:
 
             truth_label = os.path.split(os.path.dirname(query_image))[-1]
             error_label = os.path.split(os.path.dirname(res_image))[-1]
+            # print('现在是top-{}，检索错误'.format(i))
             res_dict.setdefault(error_label, 0)
             res_dict[error_label] += 1
             if saved_error_dir:
@@ -182,26 +187,24 @@ def get_topk(score, gallery_images, truth_images, query_image, top_k=5, saved_er
                 copy_path = os.path.join(saved_error_dir, os.path.basename(query_image))
                 new_name = os.path.join(saved_error_dir, str(query_id) + '_' + str(0) + '_' + truth_label
                                         + '_' + os.path.basename(query_image))
-                if os.path.isfile(new_name):
-                    continue
+                if not os.path.isfile(new_name):
                     # 1.复制
-                shutil.copy(query_image, copy_path)
-                # 2.改名
-                os.rename(copy_path, new_name)
+                    shutil.copy(query_image, copy_path)
+                    # 2.改名
+                    os.rename(copy_path, new_name)
                 # 错误图片处理
                 copy_path = os.path.join(saved_error_dir, os.path.basename(res_image))
-                new_name = os.path.join(saved_error_dir, str(query_id) + '_' + str(i) + '_' + error_label
+                new_name = os.path.join(saved_error_dir, str(query_id) + '_' + str(i+1) + '_' + error_label
                                         + '_' + os.path.basename(res_image))
-                if os.path.isfile(new_name):
-                    continue
-                # 1.复制
-                shutil.copy(res_image, copy_path)
-                # 2.改名
-                os.rename(copy_path, new_name)
+                if not os.path.isfile(new_name):
+                    # 1.复制
+                    shutil.copy(res_image, copy_path)
+                    # 2.改名
+                    os.rename(copy_path, new_name)
 
         # 检查当前top-i轮的多数项作为结果是否正负，stage_list.append(1 or 0)
         max_times = 0
-        max_label = 0
+        max_label = ''
         for key, value in res_dict.items():
             if value > max_times:
                 max_label = key

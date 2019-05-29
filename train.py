@@ -24,7 +24,7 @@ if __name__ == '__main__':
 
     model_params_path = os.path.join(args.model_dir, 'params.json')
     label_map_path = os.path.join(args.image_dir, 'label_map.pbtxt')
-    train_data_dir = os.path.join(args.image_dir, 'gallery')
+    train_data_dir = os.path.join(args.image_dir, 'gallery/Nestle')
     assert os.path.isfile(model_params_path), "No json configuration file found at {}".format(model_params_path)
     assert os.path.isfile(label_map_path), "No label map file found at {}".format(label_map_path)
     assert os.path.isdir(train_data_dir), "No folder found at {}".format(train_data_dir)

@@ -4,9 +4,7 @@ import tensorflow as tf
 
 from utils.triplet_loss import batch_all_triplet_loss
 from utils.triplet_loss import batch_hard_triplet_loss
-from utils.triplet_loss import batch_semi_hard_triplet_loss
 from slim.nets import vgg
-from slim.nets import inception_resnet_v2
 
 
 def model_fn(features, labels, mode, params):
@@ -36,13 +34,13 @@ def model_fn(features, labels, mode, params):
         #                                                            base_final_endpoint=params.final_endpoint)
         embeddings = vgg.vgg_16(
             inputs=images,
-            num_classes=params.num_labels,
+            num_classes=params.embedding_size,
             is_training=is_training,
-            dropout_keep_prob=0.5,
+            dropout_keep_prob=0.8,
             spatial_squeeze=True,
             scope='vgg_16',
             fc_conv_padding='VALID',
-            global_pool=True)
+            global_pool=False)
 
     embedding_mean_norm = tf.reduce_mean(tf.norm(embeddings, axis=1))
     tf.summary.scalar("embedding_mean_norm", embedding_mean_norm)
@@ -68,7 +66,7 @@ def model_fn(features, labels, mode, params):
     with tf.variable_scope("metrics"):
         eval_metric_ops = {"embedding_mean_norm": tf.metrics.mean(embedding_mean_norm)}
 
-        if params.triplet_strategy == "batch_all" :
+        if params.triplet_strategy == "batch_all":
             eval_metric_ops['fraction_positive_triplets'] = tf.metrics.mean(fraction)
 
     if mode == tf.estimator.ModeKeys.EVAL:
@@ -76,7 +74,7 @@ def model_fn(features, labels, mode, params):
 
     # Summaries for training
     tf.summary.scalar('loss', loss)
-    if params.triplet_strategy == "batch_all" or params.triplet_strategy == 'batch_semi_hard':
+    if params.triplet_strategy == "batch_all":
         tf.summary.scalar('fraction_positive_triplets', fraction)
 
     tf.summary.image('train_image', images, max_outputs=1)

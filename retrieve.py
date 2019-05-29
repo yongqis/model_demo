@@ -6,7 +6,7 @@ import tensorflow as tf
 from slim.nets import vgg
 from utils.utils import Params
 from utils import retrieve_util
-
+slim = tf.contrib.slim
 parser = argparse.ArgumentParser()
 parser.add_argument('--model_dir', default='saved_model', help="Experiment directory containing params.json and ckpt")
 parser.add_argument('--image_dir', default='', help="Directory containing the query image and gallery image folders")
@@ -35,31 +35,35 @@ def retrieve(model_dir, base_image_dir, gallery_data_dir, saved_model_path=None)
     # 或者加载指定模型
     if saved_model_path:
         model_path = saved_model_path
-    #
+
     input_shape = (None, params.image_size, params.image_size, 3)
 
-    # build graph
+    # build graph, feature_dict
     with tf.variable_scope('model'):
         images = tf.placeholder(dtype=tf.float32, shape=input_shape)
-        final_output, feature_dict = vgg.vgg_16(
+        final_output = vgg.vgg_16(
             inputs=images,
             num_classes=256,
             is_training=False,
-            dropout_keep_prob=0.7,
+            dropout_keep_prob=0.8,
             spatial_squeeze=True,
             scope='vgg_16',
             fc_conv_padding='VALID',
             global_pool=False)
 
     # encode & normalize
-    embeddings = retrieve_util.encode(feature_dict['layer_name'])  # or
-
+    embeddings = tf.nn.l2_normalize(final_output, axis=1)
+    # embeddings = retrieve_util.encode(final_output)  # or
+    # load fn
+    # load_fn = slim.assign_from_checkpoint_fn('')
     # run
     with tf.Session() as sess:
         # load model
         saver = tf.train.Saver()
         saver.restore(sess, model_path)
         #
+        # sess.run(tf.global_variables_initializer())
+        # load_fn(sess)
         if not params.only_query:
             retrieve_util.build_gallery(sess, input_shape, images, embeddings, base_image_dir, gallery_data_dir)
         retrieve_util.image_query(sess, input_shape, images, embeddings, base_image_dir, gallery_data_dir, params.top_k)

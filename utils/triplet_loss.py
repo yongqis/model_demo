@@ -171,58 +171,6 @@ def batch_all_triplet_loss(labels, embeddings, margin, squared=False):
     return triplet_loss, fraction_positive_triplets
 
 
-def batch_semi_hard_triplet_loss(labels, embeddings, margin, squared=False):
-    """
-    semi hard select all positive paris but negative paris which neg_dist - pos_dist < margin
-    :param labels:
-    :param embeddings:
-    :param margin:
-    :param squared:
-    :return:
-    """
-    # Get the pairwise distance matrix
-    pairwise_dist = _pairwise_distances(embeddings, squared=squared)
-    # shape (batch_size, batch_size, 1)
-    anchor_positive_dist = tf.expand_dims(pairwise_dist, 2)
-    # anchor_positive_dist = 1.0 / (1.0 + anchor_positive_dist)  # 归一化处理
-    assert anchor_positive_dist.shape[2] == 1, "{}".format(anchor_positive_dist.shape)
-    # shape (batch_size, 1, batch_size)
-    anchor_negative_dist = tf.expand_dims(pairwise_dist, 1)
-    # anchor_negative_dist = 1.0 /
-    assert anchor_negative_dist.shape[1] == 1, "{}".format(anchor_negative_dist.shape)
-
-    # Compute a 3D tensor of size (batch_size, batch_size, batch_size)
-    # triplet_loss[i, j, k] will contain the triplet loss of anchor=i, positive=j, negative=k
-    # Uses broadcasting where the 1st argument has shape (batch_size, batch_size, 1)
-    # and the 2nd (batch_size, 1, batch_size)
-    triplet_loss = anchor_positive_dist - anchor_negative_dist + margin
-
-    # Put to zero the invalid triplets
-    # (where label(a) != label(p) or label(n) == label(a) or a == p)
-    mask = _get_triplet_mask(labels)
-    mask = tf.to_float(mask)
-    triplet_loss = tf.multiply(mask, triplet_loss)
-
-    # semi hard select
-    triplet_loss_no_margin = anchor_negative_dist - anchor_positive_dist
-    mask_neg = tf.where(tf.greater(margin, triplet_loss_no_margin))
-    triplet_loss = tf.multiply(triplet_loss, tf.to_float(mask_neg))
-
-    # Remove negative losses (i.e. the easy triplets)
-    triplet_loss = tf.maximum(triplet_loss, 0.0)
-
-    # Count number of positive triplets (where triplet_loss > 0)
-    valid_triplets = tf.to_float(tf.greater(triplet_loss, 1e-16))
-    num_positive_triplets = tf.reduce_sum(valid_triplets)
-    num_valid_triplets = tf.reduce_sum(mask)
-    fraction_positive_triplets = num_positive_triplets / (num_valid_triplets + 1e-16)
-
-    # Get final mean triplet loss over the positive valid triplets
-    triplet_loss = tf.reduce_sum(triplet_loss) / (num_positive_triplets + 1e-16)
-
-    return triplet_loss, fraction_positive_triplets
-
-
 def batch_hard_triplet_loss(labels, embeddings, margin, squared=False):
     """Build the triplet loss over a batch of embeddings.
 
