@@ -10,6 +10,7 @@ gen
 saved_data
 saved_model
 jkl.py
+log.txt
 __pycache__/
 slim/__pycache__/
 slim/nets/__pycache__/
