@@ -30,29 +30,29 @@ def retrieve(model_dir, base_image_dir, gallery_data_dir, saved_model_path=None)
     params_path = os.path.join(model_dir, 'params.json')
     assert os.path.isfile(params_path), 'no params file'
     params = Params(params_path)
-    # 默认加载最新训练的模型
-    model_path = tf.train.get_checkpoint_state(model_dir).model_checkpoint_path
-    # 或者加载指定模型
-    if saved_model_path:
-        model_path = saved_model_path
 
+    # build model
     input_shape = (None, params.image_size, params.image_size, 3)
-
-    # build graph, feature_dict
     images = tf.placeholder(dtype=tf.float32, shape=input_shape)
     final_output, feature_dict = vgg.vgg_16(
         inputs=images,
         num_classes=params.embedding_size,
         is_training=False)
 
-    # encode & normalize
-    # embeddings = tf.nn.l2_normalize(final_output, axis=1)
-    embeddings = retrieve_util.encode(final_output)  # or
+    # output encode & normalize
+    embeddings = retrieve_util.encode(final_output)
+
+    # restore 默认加载目录下最新训练的模型 或者加载指定模型
+    model_path = tf.train.get_checkpoint_state(model_dir).model_checkpoint_path
+    if saved_model_path:
+        model_path = saved_model_path
+    # restore 过滤掉一些不需要加载参数 返回dict可以将保存的变量对应到模型中新的变量，返回list直接加载
+    vars_map = None
+    saver = tf.train.Saver(vars_map)
+
     # run
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
-        # load model
-        saver = tf.train.Saver()
         saver.restore(sess, model_path)
         # 开始检索
         if not params.only_query:

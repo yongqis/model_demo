@@ -4,6 +4,7 @@ import cv2
 import json
 import shutil
 import logging
+import tensorflow as tf
 from utils.label_map_util import get_label_map_dict
 
 
@@ -145,3 +146,41 @@ def image_size(img_dir):
     print('small num:', small_num)
     print('mid_num:', mid_num)
     print('large_num:', large_num)
+
+
+def get_variable_to_restore(vars_dict, checkpoint_path, include_global_step=False):
+    """
+
+    :param vars_dict:
+    :param checkpoint_path:
+    :param include_global_step:
+    :return:
+    """
+    if isinstance(vars_dict, list):
+        vars_map = {v.op.name: v for v in vars_dict}
+    elif isinstance(vars_dict, dict):
+        vars_map = vars_dict
+    else:
+        raise ValueError("`vars_dict` is excepted to be a list or dict")
+
+    ckpt_reader = tf.train.NewCheckpointReader(checkpoint_path)
+    ckpt_vars_to_shape_map = ckpt_reader.get_variable_to_shape_map()
+    if not include_global_step:
+        ckpt_vars_to_shape_map.pop(tf.GraphKeys.GLOBAL_STEP, None)
+    var_in_ckpt={}
+    for var_name, var in sorted(vars_map):
+        if var_name in ckpt_vars_to_shape_map:
+            if var.shape.as_list() == ckpt_vars_to_shape_map[var_name]:
+                var_in_ckpt[var_name] = var
+            else:
+                logging.WARNING('Variable [%s] is available in checkpoint, but has an '
+                                'incompatible shape with model variable. Checkpoint '
+                                'shape: [%s], model variable shape: [%s]. This '
+                                'variable will not be initialized from the checkpoint.',
+                                var_name, ckpt_vars_to_shape_map[var_name], var.shape.as_list())
+        else:
+            logging.warning('Variable [%s] is not available in checkpoint', var_name)
+
+    if isinstance(vars_dict, list):
+        return var_in_ckpt.values()
+    return var_in_ckpt
