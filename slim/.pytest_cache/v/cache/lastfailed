@@ -1,3 +1,4 @@
 {
-  "nets/inception_resnet_v2_test.py": true
+  "nets/inception_resnet_v2_test.py": true,
+  "nets/resnet_v2_test.py": true
 }

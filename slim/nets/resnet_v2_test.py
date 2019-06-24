@@ -21,8 +21,8 @@ from __future__ import print_function
 import numpy as np
 import tensorflow as tf
 
-from nets import resnet_utils
-from nets import resnet_v2
+from slim.nets import resnet_utils
+from slim.nets import resnet_v2
 
 slim = tf.contrib.slim
 
@@ -105,6 +105,8 @@ class ResnetUtilsTest(tf.test.TestCase):
 
     with self.test_session() as sess:
       sess.run(tf.global_variables_initializer())
+      print(x.eval())
+      print(w.eval())
       self.assertAllClose(y1.eval(), y1_expected.eval())
       self.assertAllClose(y2.eval(), y2_expected.eval())
       self.assertAllClose(y3.eval(), y3_expected.eval())

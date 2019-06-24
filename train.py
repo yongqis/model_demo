@@ -6,7 +6,8 @@ import argparse
 import tensorflow as tf
 
 from utils.input_fn import train_input_fn
-from utils.model_fn import model_fn
+from utils.model_fn import vgg_model_fn
+from utils.train_resnet import model_fn
 from utils.utils import Params
 from utils.utils import get_data
 

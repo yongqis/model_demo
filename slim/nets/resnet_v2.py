@@ -63,7 +63,7 @@ def bottleneck(inputs, depth, depth_bottleneck, stride, rate=1,
                outputs_collections=None, scope=None):
     """Bottleneck residual unit variant with BN before convolutions.
 
-    This is the full preactivation residual unit variant proposed in [2]. See
+    This is the full pre-activation residual unit variant proposed in [2]. See
     Fig. 1(b) of [2] for its definition. Note that we use here the bottleneck
     variant which has an extra bottleneck layer.
 
@@ -86,6 +86,7 @@ def bottleneck(inputs, depth, depth_bottleneck, stride, rate=1,
     with tf.variable_scope(scope, 'bottleneck_v2', [inputs]) as sc:
         depth_in = slim.utils.last_dimension(inputs.get_shape(), min_rank=4)
         preact = slim.batch_norm(inputs, activation_fn=tf.nn.relu, scope='preact')
+        # 如果输入和输出的w.h.c保持一致。如果c不一致，需要
         if depth == depth_in:
             shortcut = resnet_utils.subsample(inputs, stride, 'shortcut')
         else:
@@ -93,19 +94,15 @@ def bottleneck(inputs, depth, depth_bottleneck, stride, rate=1,
                                    normalizer_fn=None, activation_fn=None,
                                    scope='shortcut')
 
-        residual = slim.conv2d(preact, depth_bottleneck, [1, 1], stride=1,
-                               scope='conv1')
-        residual = resnet_utils.conv2d_same(residual, depth_bottleneck, 3, stride,
-                                            rate=rate, scope='conv2')
+        residual = slim.conv2d(preact, depth_bottleneck, [1, 1], stride=1, scope='conv1')
+        residual = resnet_utils.conv2d_same(residual, depth_bottleneck, 3, stride, rate=rate, scope='conv2')
         residual = slim.conv2d(residual, depth, [1, 1], stride=1,
                                normalizer_fn=None, activation_fn=None,
                                scope='conv3')
 
         output = shortcut + residual
 
-        return slim.utils.collect_named_outputs(outputs_collections,
-                                                sc.name,
-                                                output)
+        return slim.utils.collect_named_outputs(outputs_collections, sc.name, output)
 
 
 def resnet_v2(inputs,
@@ -182,8 +179,8 @@ def resnet_v2(inputs,
     """
     with tf.variable_scope(scope, 'resnet_v2', [inputs], reuse=reuse) as sc:
         end_points_collection = sc.original_name_scope + '_end_points'
-        with slim.arg_scope([slim.conv2d, bottleneck,
-                             resnet_utils.stack_blocks_dense],
+        # slim.arg_scope(list_ops_or_scope, **k) 为指定操作list设置默认值，这些op fn必须有@slim.add_arg_scope装饰器
+        with slim.arg_scope([slim.conv2d, bottleneck, resnet_utils.stack_blocks_dense],
                             outputs_collections=end_points_collection):
             with slim.arg_scope([slim.batch_norm], is_training=is_training):
                 net = inputs
@@ -195,8 +192,7 @@ def resnet_v2(inputs,
                     # We do not include batch normalization or activation functions in
                     # conv1 because the first ResNet unit will perform these. Cf.
                     # Appendix of [2].
-                    with slim.arg_scope([slim.conv2d],
-                                        activation_fn=None, normalizer_fn=None):
+                    with slim.arg_scope([slim.conv2d], activation_fn=None, normalizer_fn=None):
                         net = resnet_utils.conv2d_same(net, 64, 7, stride=2, scope='conv1')
                     net = slim.max_pool2d(net, [3, 3], stride=2, scope='pool1')
                 net = resnet_utils.stack_blocks_dense(net, blocks, output_stride)
@@ -205,8 +201,7 @@ def resnet_v2(inputs,
                 # Appendix of [2].
                 net = slim.batch_norm(net, activation_fn=tf.nn.relu, scope='postnorm')
                 # Convert end_points_collection into a dictionary of end_points.
-                end_points = slim.utils.convert_collection_to_dict(
-                    end_points_collection)
+                end_points = slim.utils.convert_collection_to_dict(end_points_collection)
 
                 if global_pool:
                     # Global average pooling.
@@ -239,15 +234,10 @@ def resnet_v2_block(scope, base_depth, num_units, stride):
     Returns:
       A resnet_v2 bottleneck block.
     """
-    return resnet_utils.Block(scope, bottleneck, [{
-        'depth': base_depth * 4,
-        'depth_bottleneck': base_depth,
-        'stride': 1
-    }] * (num_units - 1) + [{
-        'depth': base_depth * 4,
-        'depth_bottleneck': base_depth,
-        'stride': stride
-    }])
+    return resnet_utils.Block(scope, bottleneck,
+                              [{'depth': base_depth * 4, 'depth_bottleneck': base_depth, 'stride': 1}]
+                              * (num_units - 1)
+                              + [{'depth': base_depth * 4, 'depth_bottleneck': base_depth, 'stride': stride}])
 
 
 resnet_v2.default_image_size = 224
