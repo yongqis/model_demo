@@ -8,8 +8,8 @@ import tensorflow as tf
 from utils.input_fn import train_input_fn
 from utils.model_fn import vgg_model_fn
 from utils.train_resnet import model_fn
-from utils.utils import Params
-from utils.utils import get_data
+from utils.config import Params
+from utils.config import get_data
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model_dir', default='saved_model', help="Experiment directory containing params.json")

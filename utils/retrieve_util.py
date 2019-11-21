@@ -6,7 +6,32 @@ import shutil
 import numpy as np
 import tensorflow as tf
 from sklearn.externals import joblib
-from utils.utils import get_ab_path, get_dict
+from utils.config import get_ab_path, get_dict
+
+
+def split_data(datafile_root):
+    # 划分数据集
+    img_txt_file = open(os.path.join(datafile_root, 'images.txt'))
+    label_txt_file = open(os.path.join(datafile_root, 'image_class_labels.txt'))
+    train_val_file = open(os.path.join(datafile_root, 'train_test_split.txt'))
+    img_name_list = []
+    for line in img_txt_file:
+        img_name_list.append(line[:-1].split(' ')[-1])
+    label_list = []
+    for line in label_txt_file:
+        label_list.append(int(line[:-1].split(' ')[-1]) - 1)
+    train_test_list = []
+    for line in train_val_file:
+        train_test_list.append(int(line[:-1].split(' ')[-1]))
+    # 按照文件中路径划分为train test数据集
+    train_image_paths = [os.path.join(datafile_root, 'images', x) for i, x in zip(train_test_list, img_name_list)
+                         if i]
+    test_image_paths = [os.path.join(datafile_root, 'images', x) for i, x in zip(train_test_list, img_name_list) if
+                        not i]
+
+    train_image_labels = [x for i, x in zip(train_test_list, label_list) if i]
+    test_image_labels = [x for i, x in zip(train_test_list, label_list) if not i]
+    return test_image_paths, test_image_labels, train_image_paths, train_image_labels
 
 
 def preprocess(image_path, input_shape):
@@ -16,10 +41,14 @@ def preprocess(image_path, input_shape):
     :param input_shape:
     :return:
     """
+    mean = np.array([0.485, 0.456, 0.406])
+    std = np.array([0.229, 0.224, 0.225])
     img = cv2.imread(image_path)
-    img = cv2.resize(img, (input_shape[1], input_shape[2]))  # resize
+    if img.shape[2] != 3:
+        print('aa')
+    # img = cv2.resize(img, (input_shape[1], input_shape[2]))  # resize
     img = img.astype(np.float32)  # keras for_mat
-    img = (2.0 / 255.0) * img - 1.0
+    img = (img / 255.0 - mean) / std
     batch_img = np.expand_dims(img, 0)  # batch_size
     return batch_img
 
@@ -30,17 +59,16 @@ def encode(feature):
     :param feature: 4-D tensor [batch_size, height, width, channel]
     :return: 2-D tensor [batch_size, channel]
     """
-    if tf.rank(feature) == 4:
-        feature = tf.reduce_mean(feature, axis=[1, 2])
-    # emb_max = tf.reduce_max(feature_map, aixs=[1, 2])
-    # emb = tf.concat([emb_avg, emb_max], axis=1)
-    if tf.rank(feature) != 2:
-        raise ValueError('rank must be 2')
-    embeddings = tf.nn.l2_normalize(feature, axis=1)
+
+    feature1 = tf.reduce_mean(feature, axis=[1, 2])
+    feature2 = tf.reduce_max(feature, axis=[1, 2])
+
+    feature = tf.squeeze(tf.concat([feature1, feature2], axis=-1))
+    embeddings = tf.nn.l2_normalize(feature, axis=0)
     return embeddings
 
 
-def build_gallery(sess, input_shape, input_node, output_node, base_image_dir, gallery_data_dir):
+def build_gallery(sess, input_shape, input_node, output_node, image_paths, gallery_data_dir):
     """
     将gallery图片进行特征编码并保存相关数据
     :param sess: a tf.Session() 用来启动模型
@@ -54,15 +82,11 @@ def build_gallery(sess, input_shape, input_node, output_node, base_image_dir, ga
     print('Start building gallery...')
 
     assert os.path.isdir(gallery_data_dir), 'dir: {} cannot find'.format(gallery_data_dir)
-    images_dir = os.path.join(base_image_dir, 'gallery')
-    assert os.path.isdir(images_dir), 'dir: {} cannot find'.format(images_dir)
 
-    truth_image_dict = get_dict(images_dir)  # 将同一类别的所有图片的路径存为字典
-    image_paths = get_ab_path(images_dir)  # 文件目录下所有图片的绝对路径
     nums = len(image_paths)
     feature_list = []
     for i, image_path in enumerate(image_paths):
-        print('{}/{}'.format(i+1, nums))
+        print('{}/{}'.format(i + 1, nums))
         batch_img = preprocess(image_path, input_shape)
         batch_embedding = sess.run(output_node, feed_dict={input_node: batch_img})
         embedding = np.squeeze(batch_embedding)  # 去掉batch维
@@ -70,14 +94,16 @@ def build_gallery(sess, input_shape, input_node, output_node, base_image_dir, ga
 
     # save feature
     feature_list = np.array(feature_list)
-    joblib.dump(truth_image_dict, os.path.join(gallery_data_dir, 'label_dict.pkl'))
+    # joblib.dump(truth_image_dict, os.path.join(gallery_data_dir, 'label_dict.pkl'))
     joblib.dump(feature_list, os.path.join(gallery_data_dir, 'gallery_features.pkl'))
-    joblib.dump(image_paths, os.path.join(gallery_data_dir, 'gallery_imagePaths.pkl'))
+    # joblib.dump(image_paths, os.path.join(gallery_data_dir, 'gallery_imagePaths.pkl'))
 
     print('Finish building gallery!')
+    return feature_list
 
 
-def image_query(sess, input_shape, input_node, output_node, base_image_dir, gallery_data_dir, top_k=5, sim_threshold=0.5):
+def image_query(sess, input_shape, input_node, output_node, base_image_dir, gallery_data_dir, top_k=5,
+                sim_threshold=0.5):
     """
 
     :param sess: a tf.Session() 用来启动模型
@@ -132,10 +158,10 @@ def image_query(sess, input_shape, input_node, output_node, base_image_dir, gall
 
     sum_arr = np.array(sum_list)
     ss = np.sum(sum_arr, axis=0)
-    ss = ss/sum_arr.shape[0]
+    ss = ss / sum_arr.shape[0]
 
     for i, value in enumerate(ss):
-        print('top-{} acc:{}'.format(i+1, value))
+        print('top-{} acc:{}'.format(i + 1, value))
 
 
 def get_topk(score, gallery_images, truth_images, query_image, top_k=5, saved_error_dir=None, query_id=None):
@@ -196,7 +222,7 @@ def get_topk(score, gallery_images, truth_images, query_image, top_k=5, saved_er
                     os.rename(copy_path, new_name)
                 # 错误图片处理
                 copy_path = os.path.join(saved_error_dir, os.path.basename(res_image))
-                new_name = os.path.join(saved_error_dir, str(query_id) + '_' + str(i+1) + '_' + error_label
+                new_name = os.path.join(saved_error_dir, str(query_id) + '_' + str(i + 1) + '_' + error_label
                                         + '_' + os.path.basename(res_image))
                 if not os.path.isfile(new_name):
                     # 1.复制
@@ -213,3 +239,69 @@ def get_topk(score, gallery_images, truth_images, query_image, top_k=5, saved_er
         max_label = 'right_label' if max_times is 1 else max_label
         stage_list.append(int(max_label == 'right_label'))
     return stage_list
+
+
+def image_query_new(sess, input_shape, input_node, output_node, query_image_paths, query_label, gallery_label,
+                    gallery_features, top_k=5):
+    """
+
+    :param sess: a tf.Session() 用来启动模型
+    :param top_k: 检索结果取top-k个 计算准确率Acc = (TN + TP)/(N + P)
+    :param input_shape: 图片resize的目标大小，和模型的placeholder保持一致
+    :param input_node: 模型的输入节点，placeholder，用来传入图片
+    :param output_node: 模型的输出节点，得到最终结果
+    :param base_image_dir: 图片根目录，内有两个子文件夹，query和gallery，都保存有图片
+    :param gallery_data_dir: ；用来读取build_gallery保存的数据
+    :param sim_threshold : 相似度阈值
+    :return:
+    """
+    query_num = len(query_image_paths)
+    query_label = np.array(query_label)
+    gallery_label = np.array(gallery_label)
+    # statistics params
+    top_1 = 0
+    top_5 = 0
+    for i, query_image_path in enumerate(query_image_paths):
+        # if i == 100:
+        #     break
+        print('---------')
+        print('{}/{}'.format(i, query_num))
+        # precess image
+        batch_img = preprocess(query_image_path, input_shape)
+        # get embedding image
+        batch_embedding = sess.run(output_node, feed_dict={input_node: batch_img})
+        embedding = np.squeeze(batch_embedding)  # 去掉batch维
+        # 计算余弦相似度，归一化，并排序
+        query_feature = embedding
+        cos_sim = np.dot(query_feature, gallery_features.T)
+        cos_sim = 0.5 + 0.5 * cos_sim
+        sorted_indices = np.argsort(-cos_sim)
+        # 检查 检索结果
+
+        k_gallery_label = gallery_label[sorted_indices[:top_k]]
+        if query_label[i] == k_gallery_label[0]:
+            top_1 += 1
+            top_5 += 1
+            print("all true")
+        elif query_label[i] in k_gallery_label:
+            top_5 += 1
+    print(top_1 / query_num)
+    print(top_5 / query_num)
+
+
+def similiar(batch_feature, query_label, gallery_features, gallery_label, top1, top5):
+    embedding = np.squeeze(batch_feature)  # 去掉batch维
+    # 计算余弦相似度，归一化，并排序
+    query_feature = embedding
+    cos_sim = np.dot(query_feature, gallery_features.T)
+    cos_sim = 0.5 + 0.5 * cos_sim
+    sorted_indices = np.argsort(-cos_sim)
+    # 检查 检索结果
+
+    k_gallery_label = gallery_label[sorted_indices[:5]]
+    if query_label == k_gallery_label[0]:
+        top1 += 1
+        top5 += 1
+        print("all true")
+    elif query_label in k_gallery_label:
+        top5 += 1

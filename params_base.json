@@ -2,7 +2,7 @@
     "buffer_size": 500,
     "batch_size": 32,
     "num_epochs": 20,
-    "image_size": 96,
+    "image_size": 224,
 
     "embedding_size": 256,
 
