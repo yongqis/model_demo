@@ -4,7 +4,6 @@ import os
 import argparse
 import numpy as np
 import tensorflow as tf
-from sklearn.externals import joblib
 
 from slim.nets import vgg
 from utils.config import Params
@@ -14,11 +13,13 @@ from utils import scda_utils
 slim = tf.contrib.slim
 parser = argparse.ArgumentParser()
 parser.add_argument('--model_dir', default='saved_model', help="Experiment directory containing params.json and ckpt")
-parser.add_argument('--image_dir', default=r'D:\model_data\raw\CUB_200_2011', help="Directory containing the query image and gallery image folders")
+parser.add_argument('--image_dir', default=r'D:\model_data\raw\CUB_200_2011',
+                    help="Directory containing the query image and gallery image folders")
 parser.add_argument('--data_dir', default='saved_data', help='')
-parser.add_argument('--load_model_path', default=r'saved_model\vgg_16.ckpt', help='')
+parser.add_argument('--load_model_path', default=r'saved_model/vgg_16.ckpt', help='')
 
 args = parser.parse_args()
+
 
 def retrieve(model_dir, base_image_dir, gallery_data_dir, gallery_encode, saved_model_path=None):
     """
@@ -32,21 +33,22 @@ def retrieve(model_dir, base_image_dir, gallery_data_dir, gallery_encode, saved_
     assert os.path.isdir(gallery_data_dir), 'no directory name {}'.format(gallery_data_dir)  # 保存gallery的文件夹
     assert os.path.isdir(base_image_dir), 'no directory name {}'.format(base_image_dir)  # 数据集文件夹
     assert os.path.isdir(model_dir), 'no directory name {}'.format(model_dir)  # 模型参数文件夹
-    params_path = os.path.join(model_dir, 'params.json')  # 模型参数文件
-    assert os.path.isfile(params_path), 'no params file'
+    # params_path = os.path.join(model_dir, 'params.json')  # 模型参数文件
+    # assert os.path.isfile(params_path), 'no params file'
     # 初始化参数对象
-    params = Params(params_path)
+    # params = Params(params_path)
 
     # build model
     input_shape = (None, None, None, 3)
-    images = tf.placeholder(dtype=tf.float32, shape=input_shape)
+    im_path = tf.placeholder(dtype=tf.string)
+    images = retrieve_util.preprocess(im_path, input_shape)
     final_output, feature_dict = vgg.vgg_16(
         inputs=images,
         num_classes=None,
         is_training=False)
     #  CNN output encode & normalize
     feature = feature_dict['vgg_16/pool5']
-    embeddings = retrieve_util.encode(feature)
+    # embeddings, _ = scda_utils.scda(feature)
 
     # restore 默认加载目录下最新训练的模型 或者加载指定模型
     # model_path = tf.train.get_checkpoint_state(model_dir).model_checkpoint_path
@@ -63,47 +65,54 @@ def retrieve(model_dir, base_image_dir, gallery_data_dir, gallery_encode, saved_
         print(saved_model_path)
         saver.restore(sess, saved_model_path)
         query_image_paths, query_labels, gallery_image_paths, gallery_labels = retrieve_util.split_data(base_image_dir)
-        # gallery特征提取
+        # gallery特征提取或加载
         if gallery_encode:
-             gallery_features = retrieve_util.build_gallery(sess, input_shape, images, embeddings, gallery_image_paths, gallery_data_dir)
+            gallery_features = retrieve_util.build_gallery(sess, input_shape, im_path, feature, gallery_image_paths,
+                                                           gallery_data_dir)
         else:
-            gallery_features = joblib.load(os.path.join(gallery_data_dir, 'gallery_features.pkl'))
-        # 开始检索
-        # retrieve_util.image_query_new(sess, input_shape, images, embeddings, query_image_paths, query_labels, gallery_labels, gallery_features, params.top_k)
+            gallery_features = np.load(os.path.join(gallery_data_dir, 'gallery_features.pkl'))
 
+        # 开始检索
         query_num = len(query_image_paths)
-        query_label = np.array(query_labels)
-        gallery_label = np.array(gallery_labels)
-        # statistics params
+        query_labels = np.array(query_labels)
+        gallery_labels = np.array(gallery_labels)
+
         top_1 = 0
         top_5 = 0
+        feature_list = []
         for i, query_image_path in enumerate(query_image_paths):
-            # if i == 100:
-            #     break
             print('---------')
             print('{}/{}'.format(i, query_num))
-            # precess image
-            batch_img = retrieve_util.preprocess(query_image_path, input_shape)
-            # get embedding image
-            batch_embedding = sess.run(embedding, feed_dict={images: batch_img})
-
-            # 计算余弦相似度，归一化，并排序
-            embedding = np.squeeze(batch_embedding)  # 去掉batch维
-            query_feature = embedding
+            # get feature map
+            batch_embedding = sess.run(feature, feed_dict={im_path: query_image_path})
+            # 去掉batch维
+            embedding = np.squeeze(batch_embedding)
+            # scda encode
+            query_feature, _ =scda_utils.scda(embedding)  # 注意有两个返回值
+            # 计算相似度，并排序
             cos_sim = np.dot(query_feature, gallery_features.T)
-            cos_sim = 0.5 + 0.5 * cos_sim
-            sorted_indices = np.argsort(-cos_sim)
-            # 检查 检索结果
-
-            k_gallery_label = gallery_label[sorted_indices[:params.top_k]]
-            if query_label[i] == k_gallery_label[0]:
+            # norm = np.linalg.norm(query_feature) * np.linalg.norm(gallery_features)
+            # cos_sim /= norm
+            cos_sim = 0.5 + 0.5 * cos_sim  # 归一化， [-1, 1] --> [0, 1]
+            sorted_indices = np.argsort(-cos_sim)  # 值越大相似度越大，因此添加‘-’升序排序
+            # 统计检索结果
+            query_label = query_labels[i]
+            k_gallery_label = gallery_labels[sorted_indices[:5]]
+            if query_label == k_gallery_label[0]:
                 top_1 += 1
                 top_5 += 1
                 print("all true")
-            elif query_label[i] in k_gallery_label:
+            elif query_label in k_gallery_label:
                 top_5 += 1
-        print(top_1 / query_num)
-        print(top_5 / query_num)
+                print("rank5 true")
+            else:
+                print("all false")
+            # feature_list.append(embedding)
+        # feature_list = np.array(feature_list)
+        print(top_1, top_5)
+        print(round(top_1 / query_num, 5))
+        print(round(top_5 / query_num,5))
+
 
 if __name__ == '__main__':
     retrieve(model_dir=args.model_dir,
@@ -111,5 +120,4 @@ if __name__ == '__main__':
              gallery_data_dir=args.data_dir,
              saved_model_path=args.load_model_path,
              gallery_encode=True,
-    )
-
+             )

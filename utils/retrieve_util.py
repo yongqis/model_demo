@@ -5,6 +5,7 @@ import cv2
 import shutil
 import numpy as np
 import tensorflow as tf
+from utils import scda_utils
 from sklearn.externals import joblib
 from utils.config import get_ab_path, get_dict
 
@@ -34,22 +35,64 @@ def split_data(datafile_root):
     return test_image_paths, test_image_labels, train_image_paths, train_image_labels
 
 
-def preprocess(image_path, input_shape):
+def _mean_image_subtraction(image, means):
+  """Subtracts the given means from each image channel.
+
+  For example:
+    means = [123.68, 116.779, 103.939]
+    image = _mean_image_subtraction(image, means)
+
+  Note that the rank of `image` must be known.
+
+  Args:
+    image: a tensor of size [height, width, C].
+    means: a C-vector of values to subtract from each channel.
+
+  Returns:
+    the centered image.
+
+  Raises:
+    ValueError: If the rank of `image` is unknown, if `image` has a rank other
+      than three or if the number of channels in `image` doesn't match the
+      number of values in `means`.
+  """
+  if image.get_shape().ndims != 3:
+    raise ValueError('Input must be of size [height, width, C>0]')
+  num_channels = image.get_shape().as_list()[-1]
+  if len(means) != num_channels:
+    raise ValueError('len(means) must match the number of channels')
+
+  channels = tf.split(axis=2, num_or_size_splits=num_channels, value=image)
+  for i in range(num_channels):
+    channels[i] -= means[i]
+  return tf.concat(axis=2, values=channels)
+
+
+def preprocess(image_path, input_shape=None):
     """
     read image, resize to input_shape, zero-means
     :param image_path:
     :param input_shape:
     :return:
     """
-    mean = np.array([0.485, 0.456, 0.406])
+    mean = [123.68, 116.779, 103.939] # np.array([0.485, 0.456, 0.406])
     std = np.array([0.229, 0.224, 0.225])
-    img = cv2.imread(image_path)
-    if img.shape[2] != 3:
-        print('aa')
-    # img = cv2.resize(img, (input_shape[1], input_shape[2]))  # resize
-    img = img.astype(np.float32)  # keras for_mat
-    img = (img / 255.0 - mean) / std
-    batch_img = np.expand_dims(img, 0)  # batch_size
+
+    # tf处理图片
+    img_raw_data = tf.io.read_file(image_path)
+    img = tf.image.decode_jpeg(img_raw_data)
+    img = tf.to_float(img)
+    shape = tf.shape(img)
+    if shape[-1] == 1:
+        print("grayscale image will be convert to rgb")
+        img = tf.image.grayscale_to_rgb(img)
+    # min_side = tf.minimum(shape[0], shape[1])
+    # if min_side > 700:
+    #     t_h = shape[0] * 700 // min_side
+    #     t_w = shape[1] * 700 // min_side
+    img = (img - mean) # / std
+    # img = _mean_image_subtraction(img, mean)
+    batch_img = tf.expand_dims(img, 0)  # batch_size
     return batch_img
 
 
@@ -87,16 +130,14 @@ def build_gallery(sess, input_shape, input_node, output_node, image_paths, galle
     feature_list = []
     for i, image_path in enumerate(image_paths):
         print('{}/{}'.format(i + 1, nums))
-        batch_img = preprocess(image_path, input_shape)
-        batch_embedding = sess.run(output_node, feed_dict={input_node: batch_img})
+        batch_embedding = sess.run(output_node, feed_dict={input_node: image_path})
         embedding = np.squeeze(batch_embedding)  # 去掉batch维
-        feature_list.append(embedding)  # 加入list
+        query_feature, _ = scda_utils.scda(embedding)
+        feature_list.append(query_feature)
 
     # save feature
     feature_list = np.array(feature_list)
-    # joblib.dump(truth_image_dict, os.path.join(gallery_data_dir, 'label_dict.pkl'))
-    joblib.dump(feature_list, os.path.join(gallery_data_dir, 'gallery_features.pkl'))
-    # joblib.dump(image_paths, os.path.join(gallery_data_dir, 'gallery_imagePaths.pkl'))
+    np.save(os.path.join(gallery_data_dir, 'gallery_features.npy'), feature_list)
 
     print('Finish building gallery!')
     return feature_list
@@ -289,10 +330,9 @@ def image_query_new(sess, input_shape, input_node, output_node, query_image_path
     print(top_5 / query_num)
 
 
-def similiar(batch_feature, query_label, gallery_features, gallery_label, top1, top5):
-    embedding = np.squeeze(batch_feature)  # 去掉batch维
+def similiar(feature, query_label, gallery_features, gallery_label, top1, top5):
     # 计算余弦相似度，归一化，并排序
-    query_feature = embedding
+    query_feature = feature
     cos_sim = np.dot(query_feature, gallery_features.T)
     cos_sim = 0.5 + 0.5 * cos_sim
     sorted_indices = np.argsort(-cos_sim)
@@ -305,3 +345,4 @@ def similiar(batch_feature, query_label, gallery_features, gallery_label, top1, 
         print("all true")
     elif query_label in k_gallery_label:
         top5 += 1
+    return top1, top5
