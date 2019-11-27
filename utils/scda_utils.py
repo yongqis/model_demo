@@ -103,30 +103,27 @@ def scda(feat_map, pre_mask=None):
     输入：feature map：没有batch维度
     返回：feature_vec 和 mask
     """
-    # feat_map = non_local(feat_map)
-    # 得到掩膜
+    # 均值
     mask = select_mask(feat_map)  # mask [height, width]
     mask = max_connect(mask)  # mask[height, width]
-
-    # 和高层掩膜做 与 运算
     if pre_mask:
         mask = pre_mask * mask
-    feature_num = np.sum(mask)
-    # 筛选特征
     mask = np.expand_dims(mask, axis=-1)  # mask[height, width, 1]
     select = feat_map * mask
-    select = non_local_mat(select, mask)
-    # 均值
-    pavg = np.mean(select, axis=(0, 1)) # [channel,]
-    # pavg /= np.linalg.norm(pavg)
+    pavg = np.sum(select, axis=(0, 1)) / np.sum(mask)# [channel,]
+    pavg /= np.linalg.norm(pavg, keepdims=True)
+    pmax = np.max(select, axis=(0, 1))  # / np.sum(mask)
+    pmax /= np.linalg.norm(pmax, keepdims=True)
     # 最大值
-    pmax = np.max(select, axis=(0, 1)) # [channel,]
-    # pmax /= np.linalg.norm(pmax)
+    # mask_weight = non_local_mat(select, mask)
+    # select = feat_map * mask_weight
+    # pmax = np.max(select, axis=(0, 1)) # / np.sum(mask)
+    # pmax /= np.linalg.norm(pmax, keepdims=True)
     # concat
-    select = np.concatenate((pavg, pmax), axis=-1)  # (2channel,)
-    select /= np.linalg.norm(select, keepdims=True)
+    feat_vec = np.concatenate((pavg, pmax), axis=-1)  # (2channel,)
+    feat_vec /= np.linalg.norm(feat_vec, keepdims=True)  #
 
-    return select, mask
+    return feat_vec, mask
 
 
 def scda_plus(maps, alpha=0.5):
