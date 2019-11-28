@@ -6,8 +6,8 @@ import numpy as np
 def non_local_mat(feat_map, mask):
     """
     经scda挑选出后的feat_map,做non-local运算。优化权重分配
-
-    :param feat_map:没有batch维度
+    :param feat_map: 没有batch维度
+    :param mask: scda get binary mask
     :return:
     """
     shape_list = feat_map.shape
@@ -32,7 +32,7 @@ def non_local_mat(feat_map, mask):
 
 def select_mask(feat_map):
     """
-    feat_map 没有batch维度
+    :param feat_map: 没有batch维度的feature map
     计算feature map的均值作为阈值，得到一个mask
     返回二维mask
     """
@@ -46,7 +46,10 @@ def select_mask(feat_map):
 
 def max_connect(mask_map):
     """
-    在二值图像上只保存最大连通区域
+    在二值图像上求得最大连通区域
+
+    :param mask_map: binary matrix
+    :return: new mask
     """
     # 每个连通区域分配一个label
     areas_label = measure.label(mask_map, connectivity=2)
@@ -67,12 +70,11 @@ def max_connect(mask_map):
 
 def scda(feat_map, pre_mask=None):
     """
-    feature map：batch=1
-    pre_mask: 高层的feature map计算得到的mask [h, w, 1]， shape更小，需要放大
-
-    返回：feature_vec 和 最大连通区域的mask
+    :param feature map：batch=1
+    :param pre_mask: 高层的feature map计算得到的mask [h, w, 1]， shape更小，需要放大
+    :return: feature_vec和最大连通区域得到的mask
     """
-    feat_map = np.squeeze(feat_map)
+    feat_map = np.squeeze(feat_map)  # 去掉batch
     # 均值
     mask = select_mask(feat_map)  # mask [height, width]
     mask = max_connect(mask)  # mask[height, width, 1]
@@ -81,13 +83,13 @@ def scda(feat_map, pre_mask=None):
     select = feat_map * mask
     pavg = np.sum(select, axis=(0, 1)) / np.sum(mask)  # [channel,]
     pavg /= np.linalg.norm(pavg, keepdims=True)
-    # pmax = np.max(select, axis=(0, 1))  # / np.sum(mask)
-    # pmax /= np.linalg.norm(pmax, keepdims=True)
-    # 最大值
-    mask_weight = non_local_mat(select, mask)
-    select = feat_map * mask_weight
     pmax = np.max(select, axis=(0, 1))  # / np.sum(mask)
     pmax /= np.linalg.norm(pmax, keepdims=True)
+    # 最大值
+    # mask_weight = non_local_mat(select, mask)
+    # select = feat_map * mask_weight
+    # pmax = np.max(select, axis=(0, 1))  # / np.sum(mask)
+    # pmax /= np.linalg.norm(pmax, keepdims=True)
     # concat
     feat_vec = np.concatenate((pavg, pmax), axis=-1)  # (2channel,)
     # feat_vec /= np.linalg.norm(feat_vec, keepdims=True)  # 在此处进行l2-norm方便后续cos-smi计算，也可不做此步
@@ -96,9 +98,12 @@ def scda(feat_map, pre_mask=None):
 
 
 def scda_plus(maps, alpha=0.5):
-    """两层SCDA特征 融合
-    maps: list, 包含两个层的feature map, 第一个是pool5层，第二个是relu5_2层
-    alpha: 低层特征的系数
+    """
+    两层特征融合
+
+    :params maps: list, 包含两层的feature map, 第一个是pool5层，第二个是relu5_2层
+    :params alpha: 低层特征的concat系数
+    :return: 两层特征concat，shape(2048,)
     """
     map1, map2 = maps
     _, h2, w2, _ = map2.shape  #
@@ -110,23 +115,23 @@ def scda_plus(maps, alpha=0.5):
     feat2, _ = scda(map2, mask1)
 
     # 两层特征concat
-    Splus = np.concatenate((feat1, feat2 * alpha), axis=-1)  # (b, 4d)
+    plus = np.concatenate((feat1, feat2 * alpha), axis=-1)  # (b, 4d)
     # l2 norm
-    Splus /= np.linalg.norm(Splus, keepdims=True)
-    return Splus
+    # plus /= np.linalg.norm(plus, keepdims=True)
+    return plus
 
 
 def _nearest_neighbor(input_signal, output_size):
-    '''
+    """
     最近邻插值（适用于灰度图）
+
     :param input_signal: 输入图像
     :param output_size: list 输出图像尺寸h,w
     :return: 缩放后的图像
-    '''
+    """
     input_signal_cp = np.copy(input_signal)  # 输入图像的副本
     input_row, input_col, _ = input_signal_cp.shape  # 输入图像的尺寸（行、列）
     output_signal = np.zeros(output_size)  # 输出图片
-
     for i in range(output_size[0]):
         for j in range(output_size[1]):
             # 输出图片中坐标 （i，j）对应至输入图片中的（m，n）
@@ -139,34 +144,15 @@ def _nearest_neighbor(input_signal, output_size):
                 n = input_col - 1
             # 插值
             output_signal[i, j] = input_signal_cp[m, n]
-
     return output_signal
-
-
-def post_processing(feat, dim=512):
-    s, u, v = tf.linalg.svd(feat)
-    feat_svd = tf.transpose(v[:dim, :])  # (b, dim)?
-    return feat_svd
-
-
-def scda_flip_plus(batch_maps):
-    """
-    batch_maps 是一个list,有两个元素，分别是pool5和relu5_2层的输出
-    而每个元素，是一个batch为2的feature_map
-    """
-    batch_pool, batch_relu = batch_maps
-
-    # print(batch_pool[None, 1].shape)
-    origin_feature = scda_plus([batch_pool[None, 0], batch_relu[None, 0]])
-    flip_feature = scda_plus([batch_pool[None, 1], batch_relu[None, 1]])
-    feature = np.concatenate((origin_feature, flip_feature), axis=-1)
-    # feature /= np.linalg.norm(feature, keepdims=True)
-    return feature
 
 
 def scda_flip(batch_maps):
     """
-    batch_maps: im和flip_im组成batch，得到pool5层的输出
+    将origin_im和flip_im组成batch送入模型，对某一卷积层的输出进行处理
+
+    :param batch_maps: feature_map, batch=2
+    :return 两个scda特性concat shape(2048,)
     """
     orig_feat = batch_maps[None, 0]
     flip_feat = batch_maps[None, 1]
@@ -174,6 +160,30 @@ def scda_flip(batch_maps):
     origin_feature, _ = scda(orig_feat)
     flip_feature, _ = scda(flip_feat)
     feature = np.concatenate((origin_feature, flip_feature), axis=-1)
-    # print(feature.shape)
-    # feature /= np.linalg.norm(feature, keepdims=True)
+
     return feature
+
+
+def scda_flip_plus(batch_maps):
+    """
+    将origin_im和flip_im组成batch送入模型，对两个不同卷积层的输出进行处理
+
+    :param batch_maps: list,分别是pool5层和relu5_2层的输出的batch为2的feature_map
+    :return: feature shape (4096,)
+    """
+    batch_pool, batch_relu = batch_maps
+    origin_feature = scda_plus([batch_pool[None, 0], batch_relu[None, 0]])
+    flip_feature = scda_plus([batch_pool[None, 1], batch_relu[None, 1]])
+    feature = np.concatenate((origin_feature, flip_feature), axis=-1)
+
+    return feature
+
+
+def post_processing(feat, dim=512):
+    """
+    svd分解
+    """
+    s, u, v = tf.linalg.svd(feat)
+    feat_svd = tf.transpose(v[:dim, :])  # (b, dim)?
+    return feat_svd
+

@@ -32,15 +32,14 @@ def split_data(datafile_root):
     return test_image_paths, test_image_labels, train_image_paths, train_image_labels
 
 
-def preprocess(image_path, input_shape=None):
+def preprocess(image_path):
     """
     read image, resize to input_shape or size below 700, zero-means
     :param image_path: image absolute path
-    :param input_shape: None,
     :return:
     """
     mean = [123.68, 116.779, 103.939]  # np.array([0.485, 0.456, 0.406])
-    std = np.array([0.229, 0.224, 0.225])
+    # std = np.array([0.229, 0.224, 0.225])
 
     # tf处理图片
     img_raw_data = tf.io.read_file(image_path)
@@ -51,27 +50,26 @@ def preprocess(image_path, input_shape=None):
     if shape[-1] == 1:
         print("grayscale image will be convert to rgb")
         img = tf.image.grayscale_to_rgb(img)
-    min_side = tf.minimum(shape[0], shape[1])
-    if min_side > 700:
-        t_h = shape[0] * 700 // min_side
-        t_w = shape[1] * 700 // min_side
+    # min_side = tf.minimum(shape[0], shape[1])
+    # if min_side > 700:
+    #     t_h = shape[0] * 700 // min_side
+    #     t_w = shape[1] * 700 // min_side
+    #     img = tf.image.resize(img, size=(t_h, t_w))
 
-    img = (img - mean)  # / std
+    img = (img - mean)  # / std  vgg paper only need means don't need std
     batch_img = tf.expand_dims(img, 0)  # batch_size
-
     # flip_img = tf.image.flip_left_right(batch_img)
     # batch_img = tf.concat((batch_img, flip_img), axis=0)
     return batch_img
 
 
-def build_gallery(sess, input_shape, input_node, output_node, image_paths, gallery_data_dir):
+def build_gallery(sess, input_node, output_node, image_paths, gallery_data_dir):
     """
     将gallery图片进行特征编码并保存相关数据
     :param sess: a tf.Session() 用来启动模型
-    :param input_shape: 图片resize的目标大小，和模型的placeholder保持一致
     :param input_node: 模型的输入节点，placeholder，用来传入图片
     :param output_node: 模型的输出节点，得到最终结果
-    :param base_image_dir: 图片根目录，内有两个子文件夹，query和gallery，都保存有图片
+    :param image_paths: list,所有图片路径
     :param gallery_data_dir: gallery文件夹内的图片经模型提取的特征、图片路径以及图片路径字典都将保存在目录下
     :return:
     """

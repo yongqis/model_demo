@@ -34,9 +34,9 @@ def retrieve(model_dir, base_image_dir, gallery_data_dir, gallery_encode, saved_
     assert os.path.isdir(model_dir), 'no directory name {}'.format(model_dir)  # 模型参数文件夹
 
     # build model
-    input_shape = (None, None, None, 3)
+    # input_shape = (None, None, None, 3)
     im_path = tf.placeholder(dtype=tf.string)
-    images = retrieve_util.preprocess(im_path, input_shape)
+    images = retrieve_util.preprocess(im_path)
     final_output, feature_dict = vgg.vgg_16(
         inputs=images,
         num_classes=None,
@@ -45,7 +45,7 @@ def retrieve(model_dir, base_image_dir, gallery_data_dir, gallery_encode, saved_
     # print(feature_dict)
     feature_1 = feature_dict['vgg_16/pool5']
     feature_2 = feature_dict['vgg_16/conv5/conv5_2']
-    feature = [feature_1, feature_2]
+    feature = feature_1
 
     # restore 过滤掉一些不需要加载参数 返回dict可以将保存的变量对应到模型中新的变量，返回list直接加载
     include_vars_map = None
@@ -59,8 +59,7 @@ def retrieve(model_dir, base_image_dir, gallery_data_dir, gallery_encode, saved_
         query_image_paths, query_labels, gallery_image_paths, gallery_labels = retrieve_util.split_data(base_image_dir)
         # gallery特征提取或加载
         if gallery_encode:
-            gallery_features = retrieve_util.build_gallery(sess, input_shape, im_path, feature, gallery_image_paths,
-                                                           gallery_data_dir)
+            gallery_features = retrieve_util.build_gallery(sess, im_path, feature, gallery_image_paths, gallery_data_dir)
         else:
             gallery_features = np.load(os.path.join(gallery_data_dir, 'gallery_features.npy'))
 
@@ -69,8 +68,8 @@ def retrieve(model_dir, base_image_dir, gallery_data_dir, gallery_encode, saved_
         query_labels = np.array(query_labels)
         gallery_labels = np.array(gallery_labels)
 
-        top_1 = 0
-        top_5 = 0
+        top_1 = 0.0
+        top_5 = 0.0
         feature_list = []
         for i, query_image_path in enumerate(query_image_paths):
             print('---------')
@@ -78,34 +77,35 @@ def retrieve(model_dir, base_image_dir, gallery_data_dir, gallery_encode, saved_
             # get feature map
             batch_embedding = sess.run(feature, feed_dict={im_path: query_image_path})
             # scda encode
-            # query_feature = scda_utils.scda(batch_embedding)
-            query_feature = scda_utils.scda_plus(batch_embedding)
+            query_feature = scda_utils.scda(batch_embedding)
+            # query_feature = scda_utils.scda_plus(batch_embedding)
             # query_feature = scda_utils.scda_flip(batch_embedding)
             # query_feature = scda_utils.scda_flip_plus(batch_embedding)
             query_feature /= np.linalg.norm(query_feature, keepdims=True)
             # 计算相似度，并排序
             cos_sim = np.dot(query_feature, gallery_features.T)
-            # norm = np.linalg.norm(query_feature) * np.linalg.norm(gallery_features)
-            # cos_sim /= norm
             cos_sim = 0.5 + 0.5 * cos_sim  # 归一化， [-1, 1] --> [0, 1]
             sorted_indices = np.argsort(-cos_sim)  # 值越大相似度越大，因此添加‘-’升序排序
-            # 统计检索结果
+            # 统计检索结果AP top1 top5
             query_label = query_labels[i]
             k_gallery_label = gallery_labels[sorted_indices[:5]]
+            # 计算top1的AP
             if query_label == k_gallery_label[0]:
                 top_1 += 1
-                top_5 += 1
-                print("all true")
-            elif query_label in k_gallery_label:
-                top_5 += 1
-                print("rank5 true")
-            else:
-                print("all false")
+            # 计算top5的AP
+            correct=0
+            ap=0
+            for i in range(5):
+                if query_label == k_gallery_label[i]:
+                    correct+=1
+                ap+=(correct/(i+1))
+            top_5+=(ap/5)
+            print("top1-AP:%f | top5-AP: %f" %(top_1, ap/5))
             # feature_list.append(embedding)
         # feature_list = np.array(feature_list)
-        print(top_1, top_5)
-        print(round(top_1 / query_num, 5))
-        print(round(top_5 / query_num, 5))
+        # 统计mAP
+        print('top1-mAP:', round(top_1 / query_num, 5))
+        print('top5-mAP:', round(top_5 / query_num, 5))
 
 
 if __name__ == '__main__':
