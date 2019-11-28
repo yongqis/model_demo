@@ -1,13 +1,10 @@
 #!/usr/bin/env python
 # -*- coding:utf-8 -*-
 import os
-import cv2
 import shutil
 import numpy as np
 import tensorflow as tf
 from utils import scda_utils
-from sklearn.externals import joblib
-from utils.config import get_ab_path, get_dict
 
 
 def split_data(datafile_root):
@@ -35,80 +32,36 @@ def split_data(datafile_root):
     return test_image_paths, test_image_labels, train_image_paths, train_image_labels
 
 
-def _mean_image_subtraction(image, means):
-  """Subtracts the given means from each image channel.
-
-  For example:
-    means = [123.68, 116.779, 103.939]
-    image = _mean_image_subtraction(image, means)
-
-  Note that the rank of `image` must be known.
-
-  Args:
-    image: a tensor of size [height, width, C].
-    means: a C-vector of values to subtract from each channel.
-
-  Returns:
-    the centered image.
-
-  Raises:
-    ValueError: If the rank of `image` is unknown, if `image` has a rank other
-      than three or if the number of channels in `image` doesn't match the
-      number of values in `means`.
-  """
-  if image.get_shape().ndims != 3:
-    raise ValueError('Input must be of size [height, width, C>0]')
-  num_channels = image.get_shape().as_list()[-1]
-  if len(means) != num_channels:
-    raise ValueError('len(means) must match the number of channels')
-
-  channels = tf.split(axis=2, num_or_size_splits=num_channels, value=image)
-  for i in range(num_channels):
-    channels[i] -= means[i]
-  return tf.concat(axis=2, values=channels)
-
-
 def preprocess(image_path, input_shape=None):
     """
-    read image, resize to input_shape, zero-means
-    :param image_path:
-    :param input_shape:
+    read image, resize to input_shape or size below 700, zero-means
+    :param image_path: image absolute path
+    :param input_shape: None,
     :return:
     """
-    mean = [123.68, 116.779, 103.939] # np.array([0.485, 0.456, 0.406])
+    mean = [123.68, 116.779, 103.939]  # np.array([0.485, 0.456, 0.406])
     std = np.array([0.229, 0.224, 0.225])
 
     # tf处理图片
     img_raw_data = tf.io.read_file(image_path)
     img = tf.image.decode_jpeg(img_raw_data)
     img = tf.to_float(img)
+
     shape = tf.shape(img)
     if shape[-1] == 1:
         print("grayscale image will be convert to rgb")
         img = tf.image.grayscale_to_rgb(img)
-    # min_side = tf.minimum(shape[0], shape[1])
-    # if min_side > 700:
-    #     t_h = shape[0] * 700 // min_side
-    #     t_w = shape[1] * 700 // min_side
-    img = (img - mean) # / std
-    # img = _mean_image_subtraction(img, mean)
+    min_side = tf.minimum(shape[0], shape[1])
+    if min_side > 700:
+        t_h = shape[0] * 700 // min_side
+        t_w = shape[1] * 700 // min_side
+
+    img = (img - mean)  # / std
     batch_img = tf.expand_dims(img, 0)  # batch_size
+
+    # flip_img = tf.image.flip_left_right(batch_img)
+    # batch_img = tf.concat((batch_img, flip_img), axis=0)
     return batch_img
-
-
-def encode(feature):
-    """
-
-    :param feature: 4-D tensor [batch_size, height, width, channel]
-    :return: 2-D tensor [batch_size, channel]
-    """
-
-    feature1 = tf.reduce_mean(feature, axis=[1, 2])
-    feature2 = tf.reduce_max(feature, axis=[1, 2])
-
-    feature = tf.squeeze(tf.concat([feature1, feature2], axis=-1))
-    embeddings = tf.nn.l2_normalize(feature, axis=0)
-    return embeddings
 
 
 def build_gallery(sess, input_shape, input_node, output_node, image_paths, gallery_data_dir):
@@ -131,9 +84,12 @@ def build_gallery(sess, input_shape, input_node, output_node, image_paths, galle
     for i, image_path in enumerate(image_paths):
         print('{}/{}'.format(i + 1, nums))
         batch_embedding = sess.run(output_node, feed_dict={input_node: image_path})
-        embedding = np.squeeze(batch_embedding)  # 去掉batch维
-        query_feature, _ = scda_utils.scda(embedding)
-        feature_list.append(query_feature)
+        feature = scda_utils.scda_plus(batch_embedding)
+        # feature = scda_utils.scda_flip(batch_embedding)
+        # feature = scda_utils.scda_flip_plus(batch_embedding)
+        # print(feature.shape)
+        feature /= np.linalg.norm(feature, keepdims=True)
+        feature_list.append(feature)
 
     # save feature
     feature_list = np.array(feature_list)
@@ -141,68 +97,6 @@ def build_gallery(sess, input_shape, input_node, output_node, image_paths, galle
 
     print('Finish building gallery!')
     return feature_list
-
-
-def image_query(sess, input_shape, input_node, output_node, base_image_dir, gallery_data_dir, top_k=5,
-                sim_threshold=0.5):
-    """
-
-    :param sess: a tf.Session() 用来启动模型
-    :param top_k: 检索结果取top-k个 计算准确率Acc = (TN + TP)/(N + P)
-    :param input_shape: 图片resize的目标大小，和模型的placeholder保持一致
-    :param input_node: 模型的输入节点，placeholder，用来传入图片
-    :param output_node: 模型的输出节点，得到最终结果
-    :param base_image_dir: 图片根目录，内有两个子文件夹，query和gallery，都保存有图片
-    :param gallery_data_dir: ；用来读取build_gallery保存的数据
-    :param sim_threshold : 相似度阈值
-    :return:
-    """
-    query_image_dir = os.path.join(base_image_dir, 'query')
-    query_image_paths = get_ab_path(query_image_dir)  # 得到文件夹内所有图片的绝对路径
-    query_num = len(query_image_paths)
-    saved_error_dir = os.path.join(gallery_data_dir, 'error_image')  # 该文件夹 保存检索错误的图片
-    if not os.path.isdir(saved_error_dir):
-        saved_error_dir = None
-    # load gallery
-    lablel_map = joblib.load(os.path.join(gallery_data_dir, 'label_dict.pkl'))
-    gallery_features = joblib.load(os.path.join(gallery_data_dir, 'gallery_features.pkl'))
-    gallery_image_paths = joblib.load(os.path.join(gallery_data_dir, 'gallery_imagePaths.pkl'))
-    # statistics params
-    sum_list = []
-    for i, query_image_path in enumerate(query_image_paths):
-        # if i == 100:
-        #     break
-        print('---------')
-        print('{}/{}'.format(i, query_num))
-        # precess image
-        batch_img = preprocess(query_image_path, input_shape)
-        # get embedding image
-        batch_embedding = sess.run(output_node, feed_dict={input_node: batch_img})
-        embedding = np.squeeze(batch_embedding)  # 去掉batch维
-        # 计算余弦相似度，归一化，并排序
-        query_feature = embedding
-        cos_sim = np.dot(query_feature, gallery_features.T)
-        cos_sim = 0.5 + 0.5 * cos_sim
-        sorted_indices = np.argsort(-cos_sim)
-        # 开始检查检索结果
-        query_label = os.path.split(os.path.dirname(query_image_path))[-1]  # 查询图片的真实类别
-        truth_image_paths = lablel_map[query_label]  # 与查询图片同类别的所有图片路径，即检索正确时，结果应该在此范围内
-
-        saved_error_label_dir = None  # 将检索错误的图片保存在该类别文件夹内
-        if saved_error_dir:
-            saved_error_label_dir = os.path.join(saved_error_dir, query_label)
-            if not os.path.isdir(saved_error_label_dir):
-                os.makedirs(saved_error_label_dir)
-        res_list = get_topk(sorted_indices, gallery_image_paths, truth_image_paths, query_image_path,
-                            top_k, saved_error_dir=saved_error_label_dir, query_id=i)
-        sum_list.append(res_list)
-
-    sum_arr = np.array(sum_list)
-    ss = np.sum(sum_arr, axis=0)
-    ss = ss / sum_arr.shape[0]
-
-    for i, value in enumerate(ss):
-        print('top-{} acc:{}'.format(i + 1, value))
 
 
 def get_topk(score, gallery_images, truth_images, query_image, top_k=5, saved_error_dir=None, query_id=None):
@@ -280,69 +174,3 @@ def get_topk(score, gallery_images, truth_images, query_image, top_k=5, saved_er
         max_label = 'right_label' if max_times is 1 else max_label
         stage_list.append(int(max_label == 'right_label'))
     return stage_list
-
-
-def image_query_new(sess, input_shape, input_node, output_node, query_image_paths, query_label, gallery_label,
-                    gallery_features, top_k=5):
-    """
-
-    :param sess: a tf.Session() 用来启动模型
-    :param top_k: 检索结果取top-k个 计算准确率Acc = (TN + TP)/(N + P)
-    :param input_shape: 图片resize的目标大小，和模型的placeholder保持一致
-    :param input_node: 模型的输入节点，placeholder，用来传入图片
-    :param output_node: 模型的输出节点，得到最终结果
-    :param base_image_dir: 图片根目录，内有两个子文件夹，query和gallery，都保存有图片
-    :param gallery_data_dir: ；用来读取build_gallery保存的数据
-    :param sim_threshold : 相似度阈值
-    :return:
-    """
-    query_num = len(query_image_paths)
-    query_label = np.array(query_label)
-    gallery_label = np.array(gallery_label)
-    # statistics params
-    top_1 = 0
-    top_5 = 0
-    for i, query_image_path in enumerate(query_image_paths):
-        # if i == 100:
-        #     break
-        print('---------')
-        print('{}/{}'.format(i, query_num))
-        # precess image
-        batch_img = preprocess(query_image_path, input_shape)
-        # get embedding image
-        batch_embedding = sess.run(output_node, feed_dict={input_node: batch_img})
-        embedding = np.squeeze(batch_embedding)  # 去掉batch维
-        # 计算余弦相似度，归一化，并排序
-        query_feature = embedding
-        cos_sim = np.dot(query_feature, gallery_features.T)
-        cos_sim = 0.5 + 0.5 * cos_sim
-        sorted_indices = np.argsort(-cos_sim)
-        # 检查 检索结果
-
-        k_gallery_label = gallery_label[sorted_indices[:top_k]]
-        if query_label[i] == k_gallery_label[0]:
-            top_1 += 1
-            top_5 += 1
-            print("all true")
-        elif query_label[i] in k_gallery_label:
-            top_5 += 1
-    print(top_1 / query_num)
-    print(top_5 / query_num)
-
-
-def similiar(feature, query_label, gallery_features, gallery_label, top1, top5):
-    # 计算余弦相似度，归一化，并排序
-    query_feature = feature
-    cos_sim = np.dot(query_feature, gallery_features.T)
-    cos_sim = 0.5 + 0.5 * cos_sim
-    sorted_indices = np.argsort(-cos_sim)
-    # 检查 检索结果
-
-    k_gallery_label = gallery_label[sorted_indices[:5]]
-    if query_label == k_gallery_label[0]:
-        top1 += 1
-        top5 += 1
-        print("all true")
-    elif query_label in k_gallery_label:
-        top5 += 1
-    return top1, top5

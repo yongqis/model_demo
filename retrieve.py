@@ -6,7 +6,6 @@ import numpy as np
 import tensorflow as tf
 
 from slim.nets import vgg
-from utils.config import Params
 from utils import retrieve_util
 from utils import scda_utils
 
@@ -33,10 +32,6 @@ def retrieve(model_dir, base_image_dir, gallery_data_dir, gallery_encode, saved_
     assert os.path.isdir(gallery_data_dir), 'no directory name {}'.format(gallery_data_dir)  # 保存gallery的文件夹
     assert os.path.isdir(base_image_dir), 'no directory name {}'.format(base_image_dir)  # 数据集文件夹
     assert os.path.isdir(model_dir), 'no directory name {}'.format(model_dir)  # 模型参数文件夹
-    # params_path = os.path.join(model_dir, 'params.json')  # 模型参数文件
-    # assert os.path.isfile(params_path), 'no params file'
-    # 初始化参数对象
-    # params = Params(params_path)
 
     # build model
     input_shape = (None, None, None, 3)
@@ -47,13 +42,10 @@ def retrieve(model_dir, base_image_dir, gallery_data_dir, gallery_encode, saved_
         num_classes=None,
         is_training=False)
     #  CNN output encode & normalize
-    feature = feature_dict['vgg_16/pool5']
-    # embeddings, _ = scda_utils.scda(feature)
-
-    # restore 默认加载目录下最新训练的模型 或者加载指定模型
-    # model_path = tf.train.get_checkpoint_state(model_dir).model_checkpoint_path
-    # if saved_model_path:
-    #   model_path = saved_model_path
+    # print(feature_dict)
+    feature_1 = feature_dict['vgg_16/pool5']
+    feature_2 = feature_dict['vgg_16/conv5/conv5_2']
+    feature = [feature_1, feature_2]
 
     # restore 过滤掉一些不需要加载参数 返回dict可以将保存的变量对应到模型中新的变量，返回list直接加载
     include_vars_map = None
@@ -70,7 +62,7 @@ def retrieve(model_dir, base_image_dir, gallery_data_dir, gallery_encode, saved_
             gallery_features = retrieve_util.build_gallery(sess, input_shape, im_path, feature, gallery_image_paths,
                                                            gallery_data_dir)
         else:
-            gallery_features = np.load(os.path.join(gallery_data_dir, 'gallery_features.pkl'))
+            gallery_features = np.load(os.path.join(gallery_data_dir, 'gallery_features.npy'))
 
         # 开始检索
         query_num = len(query_image_paths)
@@ -85,10 +77,12 @@ def retrieve(model_dir, base_image_dir, gallery_data_dir, gallery_encode, saved_
             print('{}/{}'.format(i, query_num))
             # get feature map
             batch_embedding = sess.run(feature, feed_dict={im_path: query_image_path})
-            # 去掉batch维
-            embedding = np.squeeze(batch_embedding)
             # scda encode
-            query_feature, _ =scda_utils.scda(embedding)  # 注意有两个返回值
+            # query_feature = scda_utils.scda(batch_embedding)
+            query_feature = scda_utils.scda_plus(batch_embedding)
+            # query_feature = scda_utils.scda_flip(batch_embedding)
+            # query_feature = scda_utils.scda_flip_plus(batch_embedding)
+            query_feature /= np.linalg.norm(query_feature, keepdims=True)
             # 计算相似度，并排序
             cos_sim = np.dot(query_feature, gallery_features.T)
             # norm = np.linalg.norm(query_feature) * np.linalg.norm(gallery_features)
@@ -111,7 +105,7 @@ def retrieve(model_dir, base_image_dir, gallery_data_dir, gallery_encode, saved_
         # feature_list = np.array(feature_list)
         print(top_1, top_5)
         print(round(top_1 / query_num, 5))
-        print(round(top_5 / query_num,5))
+        print(round(top_5 / query_num, 5))
 
 
 if __name__ == '__main__':
