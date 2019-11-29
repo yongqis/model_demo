@@ -7,7 +7,7 @@
 *.iml
 out
 gen
-saved_data
+saved_gallery
 saved_model
 jkl.py
 log.txt
