@@ -55,9 +55,6 @@ def dog_split(root_dir):
     train_list_file = os.path.join(root_dir, 'train_list.mat')
     with tf.io.gfile.GFile(train_list_file, "rb") as f:
         parsed_mat_arr = tfds.core.lazy_imports.scipy.io.loadmat(f, squeeze_me=True)
-        print(type(parsed_mat_arr))
-        for it in parsed_mat_arr.items():
-            print(it)
         train_image_paths = [os.path.join(root_dir, 'images/'+im_path) for im_path in parsed_mat_arr['file_list']]
         train_image_labels = parsed_mat_arr['labels']
 
@@ -65,9 +62,6 @@ def dog_split(root_dir):
     test_list_file = os.path.join(root_dir, 'test_list.mat')
     with tf.io.gfile.GFile(test_list_file, "rb") as f:
         parsed_mat_arr = tfds.core.lazy_imports.scipy.io.loadmat(f, squeeze_me=True)
-        print(type(parsed_mat_arr))
-        for it in parsed_mat_arr.items():
-            print(it)
         test_image_paths = [os.path.join(root_dir, 'images/'+im_path) for im_path in parsed_mat_arr['file_list']]
         test_image_labels = parsed_mat_arr['labels']
 

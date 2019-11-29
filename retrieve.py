@@ -6,13 +6,13 @@ import numpy as np
 import tensorflow as tf
 
 from slim.nets import vgg
-from utils import retrieve_util
+from utils import retrieve_utils
 from utils import scda_utils
 from utils import data_utils
 
 slim = tf.contrib.slim
 parser = argparse.ArgumentParser()
-parser.add_argument('--image_dir', default=r'D:\model_data\raw\CUB_200_2011', help="Directory containing image folders")
+parser.add_argument('--image_dir', default=r'D:\model_data\Stanford_Dog', help="Directory containing image folders")
 parser.add_argument('--gallery_dir', default='saved_gallery', help='')
 parser.add_argument('--model_path', default=r'saved_model/vgg_16.ckpt', help='')
 
@@ -58,7 +58,7 @@ def retrieve(image_dir, gallery_dir, model_path, gallery_encode):
         query_im_paths, query_labels, gallery_im_paths, gallery_labels = data_utils.split_dataset(image_dir,'DOG')
         # gallery特征提取或加载
         if gallery_encode:
-            gallery_features = retrieve_util.build_gallery(sess, im_path, feature, gallery_im_paths, gallery_dir)
+            gallery_features = retrieve_utils.build_gallery(sess, im_path, feature, gallery_im_paths, gallery_dir)
         else:
             gallery_features = np.load(os.path.join(gallery_dir, 'gallery_features.npy'))
 

@@ -7,7 +7,6 @@ import tensorflow as tf
 from utils import scda_utils
 
 
-
 def build_gallery(sess, input_node, output_node, image_paths, gallery_data_dir):
     """
     将gallery图片进行特征编码并保存相关数据

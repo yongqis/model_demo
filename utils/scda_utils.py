@@ -83,13 +83,13 @@ def scda(feat_map, pre_mask=None):
     select = feat_map * mask
     pavg = np.sum(select, axis=(0, 1)) / np.sum(mask)  # [channel,]
     pavg /= np.linalg.norm(pavg, keepdims=True)
-    pmax = np.max(select, axis=(0, 1))  # / np.sum(mask)
-    pmax /= np.linalg.norm(pmax, keepdims=True)
-    # 最大值
-    # mask_weight = non_local_mat(select, mask)
-    # select = feat_map * mask_weight
     # pmax = np.max(select, axis=(0, 1))  # / np.sum(mask)
     # pmax /= np.linalg.norm(pmax, keepdims=True)
+    # 最大值
+    mask_weight = non_local_mat(select, mask)
+    select = feat_map * mask_weight
+    pmax = np.max(select, axis=(0, 1))  # / np.sum(mask)
+    pmax /= np.linalg.norm(pmax, keepdims=True)
     # concat
     feat_vec = np.concatenate((pavg, pmax), axis=-1)  # (2channel,)
     # feat_vec /= np.linalg.norm(feat_vec, keepdims=True)  # 在此处进行l2-norm方便后续cos-smi计算，也可不做此步
