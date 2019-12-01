@@ -4,7 +4,7 @@ import os
 import shutil
 import numpy as np
 import tensorflow as tf
-from utils import scda_utils
+from utils import scda_utils, data_utils
 
 
 def build_gallery(sess, input_node, output_node, image_paths, gallery_data_dir):
@@ -25,9 +25,10 @@ def build_gallery(sess, input_node, output_node, image_paths, gallery_data_dir):
     feature_list = []
     for i, image_path in enumerate(image_paths):
         print('{}/{}'.format(i + 1, nums))
-        batch_embedding = sess.run(output_node, feed_dict={input_node: image_path})
-        # feature, _ = scda_utils.scda(batch_embedding)
-        feature = scda_utils.scda_flip(batch_embedding)
+        batch_image = data_utils.preprocess(image_path)
+        batch_embedding = sess.run(output_node, feed_dict={input_node: batch_image})
+        feature, _ = scda_utils.scda(batch_embedding)
+        # feature = scda_utils.scda_flip(batch_embedding)
         # feature = scda_utils.scda_plus(batch_embedding)
         # feature = scda_utils.scda_flip_plus(batch_embedding)
         # print(feature.shape)

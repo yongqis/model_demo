@@ -12,7 +12,7 @@ from utils import data_utils
 
 slim = tf.contrib.slim
 parser = argparse.ArgumentParser()
-parser.add_argument('--image_dir', default=r'D:\model_data\Stanford_Dog', help="Directory containing image folders")
+parser.add_argument('--image_dir', default=r'D:\model_data\Oxford_Pet', help="Directory containing image folders")
 parser.add_argument('--gallery_dir', default='saved_gallery', help='')
 parser.add_argument('--model_path', default=r'saved_model/vgg_16.ckpt', help='')
 
@@ -33,9 +33,8 @@ def retrieve(image_dir, gallery_dir, model_path, gallery_encode):
     assert os.path.isfile(model_path), 'model path not given!'
 
     # build model
-    # input_shape = (None, None, None, 3)
-    im_path = tf.placeholder(dtype=tf.string)
-    images = data_utils.preprocess(im_path)
+    input_shape = (None, None, None, 3)
+    images = tf.placeholder(shape=input_shape, dtype=tf.float32)
     final_output, feature_dict = vgg.vgg_16(
         inputs=images,
         num_classes=None,
@@ -55,10 +54,10 @@ def retrieve(image_dir, gallery_dir, model_path, gallery_encode):
         sess.run(tf.global_variables_initializer())
         print(model_path)
         saver.restore(sess, model_path)
-        query_im_paths, query_labels, gallery_im_paths, gallery_labels = data_utils.split_dataset(image_dir,'DOG')
+        query_im_paths, query_labels, gallery_im_paths, gallery_labels = data_utils.split_dataset(image_dir)
         # gallery特征提取或加载
         if gallery_encode:
-            gallery_features = retrieve_utils.build_gallery(sess, im_path, feature, gallery_im_paths, gallery_dir)
+            gallery_features = retrieve_utils.build_gallery(sess, images, feature, gallery_im_paths, gallery_dir)
         else:
             gallery_features = np.load(os.path.join(gallery_dir, 'gallery_features.npy'))
 
@@ -74,10 +73,11 @@ def retrieve(image_dir, gallery_dir, model_path, gallery_encode):
             print('---------')
             print('{}/{}'.format(i, query_num))
             # get feature map
-            batch_embedding = sess.run(feature, feed_dict={im_path: query_im_path})
+            batch_image = data_utils.preprocess(query_im_path)
+            batch_embedding = sess.run(feature, feed_dict={images: batch_image})
             # scda encode
-            # query_feature,_ = scda_utils.scda(batch_embedding)
-            query_feature = scda_utils.scda_flip(batch_embedding)
+            query_feature,_ = scda_utils.scda(batch_embedding)
+            # query_feature = scda_utils.scda_flip(batch_embedding)
             # query_feature = scda_utils.scda_plus(batch_embedding)
             # query_feature = scda_utils.scda_flip_plus(batch_embedding)
             query_feature /= np.linalg.norm(query_feature, keepdims=True)

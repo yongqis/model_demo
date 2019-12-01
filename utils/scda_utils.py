@@ -1,6 +1,16 @@
 import tensorflow as tf
 from skimage import measure
 import numpy as np
+import cv2
+
+def otsu(feat_map):
+    # 归一化到0-255
+    img = np.mean(feat_map, axis=-1)
+    heatmap = np.maximum(img, 0)  # 和0比较取较大值
+    heatmap /= np.max(heatmap) # 归一化
+    heatmap_image = np.uint8(255 * heatmap)  # 放缩到255
+    mask, th = cv2.threshold(heatmap_image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)  # 阈值分割
+    return mask
 
 
 def non_local_mat(feat_map, mask):
@@ -75,21 +85,22 @@ def scda(feat_map, pre_mask=None):
     :return: feature_vec和最大连通区域得到的mask
     """
     feat_map = np.squeeze(feat_map)  # 去掉batch
-    # 均值
-    mask = select_mask(feat_map)  # mask [height, width]
-    mask = max_connect(mask)  # mask[height, width, 1]
+    mask = otsu(feat_map)
+    # mask = select_mask(feat_map)  # mask [height, width]
+    # mask = max_connect(mask)  # mask[height, width, 1]
     if pre_mask is not None:
         mask = pre_mask * mask
     select = feat_map * mask
+    # 均值
     pavg = np.sum(select, axis=(0, 1)) / np.sum(mask)  # [channel,]
     pavg /= np.linalg.norm(pavg, keepdims=True)
-    # pmax = np.max(select, axis=(0, 1))  # / np.sum(mask)
-    # pmax /= np.linalg.norm(pmax, keepdims=True)
-    # 最大值
-    mask_weight = non_local_mat(select, mask)
-    select = feat_map * mask_weight
     pmax = np.max(select, axis=(0, 1))  # / np.sum(mask)
     pmax /= np.linalg.norm(pmax, keepdims=True)
+    # 最大值
+    # mask_weight = non_local_mat(select, mask)
+    # weight_select = feat_map * mask_weight
+    # pmax = np.max(weight_select, axis=(0, 1))
+    # pmax /= np.linalg.norm(pmax, keepdims=True)
     # concat
     feat_vec = np.concatenate((pavg, pmax), axis=-1)  # (2channel,)
     # feat_vec /= np.linalg.norm(feat_vec, keepdims=True)  # 在此处进行l2-norm方便后续cos-smi计算，也可不做此步
