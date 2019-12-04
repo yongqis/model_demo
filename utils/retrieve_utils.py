@@ -3,16 +3,16 @@
 import os
 import shutil
 import numpy as np
-import tensorflow as tf
 from utils import scda_utils, data_utils
 
 
-def build_gallery(sess, input_node, output_node, image_paths, gallery_data_dir):
+def build_gallery(sess, input_node, output_node, feature_code, image_paths, gallery_data_dir):
     """
     将gallery图片进行特征编码并保存相关数据
     :param sess: a tf.Session() 用来启动模型
     :param input_node: 模型的输入节点，placeholder，用来传入图片
     :param output_node: 模型的输出节点，得到最终结果
+    :param feature_code: different code
     :param image_paths: list,所有图片路径
     :param gallery_data_dir: gallery文件夹内的图片经模型提取的特征、图片路径以及图片路径字典都将保存在目录下
     :return:
@@ -25,12 +25,17 @@ def build_gallery(sess, input_node, output_node, image_paths, gallery_data_dir):
     feature_list = []
     for i, image_path in enumerate(image_paths):
         print('{}/{}'.format(i + 1, nums))
-        batch_image = data_utils.preprocess(image_path)
+        batch_image = data_utils.preprocess(image_path, feature_code)
         batch_embedding = sess.run(output_node, feed_dict={input_node: batch_image})
-        feature, _ = scda_utils.scda(batch_embedding)
-        # feature = scda_utils.scda_flip(batch_embedding)
-        # feature = scda_utils.scda_plus(batch_embedding)
-        # feature = scda_utils.scda_flip_plus(batch_embedding)
+        # scda encode
+        if feature_code == 1:
+            feature, _ = scda_utils.scda(batch_embedding)
+        elif feature_code == 2:
+            feature = scda_utils.scda_flip(batch_embedding)
+        elif feature_code == 3:
+            feature = scda_utils.scda_plus(batch_embedding)
+        else:
+            feature = scda_utils.scda_flip_plus(batch_embedding)
         # print(feature.shape)
         feature /= np.linalg.norm(feature, keepdims=True)
         feature_list.append(feature)
@@ -41,6 +46,69 @@ def build_gallery(sess, input_node, output_node, image_paths, gallery_data_dir):
 
     print('Finish building gallery!')
     return feature_list
+
+
+def query(sess, input_node, output_node, feature_code, im_paths, gallery_features, query_labels, gallery_labels):
+    """
+
+    :param sess: 管理模型的会话
+    :param input_node: 模型的输入节点 place holder
+    :param output_node: 模型的输出节点
+    :param feature_code: 特征编码方式，同时对应模型不同的输入 输出
+    :param im_paths: im path list
+    :param gallery_features: build_gallery return or load from files
+    :param query_labels: label to check t or f
+    :param gallery_labels: label to check t or f
+    :return: None
+    """
+    # 开始检索
+    query_num = len(im_paths)
+    query_labels = np.array(query_labels)
+    gallery_labels = np.array(gallery_labels)
+
+    top_1 = 0.0
+    top_5 = 0.0
+    print("Start query images...")
+    for i, query_im_path in enumerate(im_paths):
+        print('---------')
+        print('{}/{}'.format(i, query_num))
+        # get feature map
+        batch_image = data_utils.preprocess(query_im_path, feature_code)
+        batch_embedding = sess.run(output_node, feed_dict={input_node: batch_image})
+        # scda encode
+        if feature_code == 1:
+            query_feature, _ = scda_utils.scda(batch_embedding)
+        elif feature_code == 2:
+            query_feature = scda_utils.scda_flip(batch_embedding)
+        elif feature_code == 3:
+            query_feature = scda_utils.scda_plus(batch_embedding)
+        else:
+            query_feature = scda_utils.scda_flip_plus(batch_embedding)
+        query_feature /= np.linalg.norm(query_feature, keepdims=True)
+        # 计算相似度，并排序
+        cos_sim = np.dot(query_feature, gallery_features.T)
+        cos_sim = 0.5 + 0.5 * cos_sim  # 归一化， [-1, 1] --> [0, 1]
+        sorted_indices = np.argsort(-cos_sim)  # 值越大相似度越大，因此添加‘-’升序排序
+        # 统计检索结果AP top1 top5
+        query_label = query_labels[i]
+        k_gallery_label = gallery_labels[sorted_indices[:5]]
+        # 计算top1的AP
+        if query_label == k_gallery_label[0]:
+            top_1 += 1
+        # 计算top5的AP
+        correct = 0
+        ap = 0
+        for j in range(5):
+            if query_label == k_gallery_label[j]:
+                correct += 1
+                ap += (correct / (j + 1))
+        ap = (ap / correct) if correct is not 0 else 0
+        top_5 = top_5 + ap
+        print("top1-AP:%f | top5-AP: %f" % (top_1, ap))
+
+    # 统计mAP
+    print('top1-mAP:', round(top_1 / query_num, 5))
+    print('top5-mAP:', round(top_5 / query_num, 5))
 
 
 def get_topk(score, gallery_images, truth_images, query_image, top_k=5, saved_error_dir=None, query_id=None):
